@@ -1,0 +1,263 @@
+// Production PostgreSQL Schema for ArenaHub
+// Use with: DATABASE_URL="postgresql://user:password@host:5432/arenahub?schema=public"
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PLAYER
+  ORGANIZER
+  ADMIN
+}
+
+enum TournamentFormat {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+}
+
+enum TournamentType {
+  SOLO
+  TEAM
+}
+
+enum TournamentStatus {
+  DRAFT
+  UPCOMING
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  DISQUALIFIED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  DISPUTED
+}
+
+enum TeamRole {
+  CAPTAIN
+  MEMBER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum NotificationType {
+  TOURNAMENT
+  MATCH
+  TEAM
+  SYSTEM
+}
+
+model User {
+  id                    String                   @id @default(cuid())
+  email                 String                   @unique
+  passwordHash          String
+  name                  String
+  username              String                   @unique
+  role                  Role                     @default(PLAYER)
+  avatarUrl             String?
+  bio                   String?
+  region                String                   @default("GLOBAL")
+  preferredGame         String?
+  discordTag            String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  teamsLed              Team[]                   @relation("TeamCaptain")
+  teamMemberships       TeamMember[]
+  invitationsReceived   TeamInvite[]
+  tournamentsOrganized  Tournament[]             @relation("TournamentOrganizer")
+  registrations         TournamentRegistration[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+
+  @@index([email])
+  @@index([username])
+}
+
+model Game {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  genre       String
+  bannerUrl   String?
+  iconUrl     String?
+  teamSize    Int          @default(5)
+  platforms   String       @default("PC")
+  active      Boolean      @default(true)
+  tournaments Tournament[]
+  teams       Team[]
+
+  @@index([slug])
+}
+
+model Team {
+  id                      String                   @id @default(cuid())
+  name                    String
+  tag                     String
+  logoUrl                 String?
+  description             String?
+  gameId                  String
+  captainId               String
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+
+  game                    Game                     @relation(fields: [gameId], references: [id])
+  captain                 User                     @relation("TeamCaptain", fields: [captainId], references: [id])
+  members                 TeamMember[]
+  invites                 TeamInvite[]
+  tournamentRegistrations TournamentRegistration[]
+
+  @@index([gameId])
+  @@index([captainId])
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id        String       @id @default(cuid())
+  teamId    String
+  inviteeId String
+  inviterId String
+  status    InviteStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+
+  team      Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitee   User         @relation(fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@index([inviteeId])
+}
+
+model Tournament {
+  id                   String                   @id @default(cuid())
+  title                String
+  slug                 String                   @unique
+  description          String
+  gameId               String
+  organizerId          String
+  format               TournamentFormat         @default(SINGLE_ELIMINATION)
+  type                 TournamentType           @default(SOLO)
+  status               TournamentStatus         @default(UPCOMING)
+  maxParticipants      Int                      @default(16)
+  registrationDeadline DateTime
+  startDate            DateTime
+  endDate              DateTime?
+  rulesText            String
+  prizePool            Int                      @default(0)
+  bannerUrl            String?
+  isFeatured           Boolean                  @default(false)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  game                 Game                     @relation(fields: [gameId], references: [id])
+  organizer            User                     @relation("TournamentOrganizer", fields: [organizerId], references: [id])
+  registrations        TournamentRegistration[]
+  matches              Match[]
+
+  @@index([status])
+  @@index([gameId])
+  @@index([organizerId])
+}
+
+model TournamentRegistration {
+  id           String             @id @default(cuid())
+  tournamentId String
+  userId       String?
+  teamId       String?
+  seed         Int?
+  status       RegistrationStatus @default(CONFIRMED)
+  registeredAt DateTime           @default(now())
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  team         Team?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([tournamentId, userId])
+  @@unique([tournamentId, teamId])
+  @@index([tournamentId])
+}
+
+model Match {
+  id               String      @id @default(cuid())
+  tournamentId     String
+  round            Int
+  matchNumber      Int
+  participant1Id   String?
+  participant1Name String?
+  participant2Id   String?
+  participant2Name String?
+  score1           Int         @default(0)
+  score2           Int         @default(0)
+  winnerId         String?
+  status           MatchStatus @default(SCHEDULED)
+  nextMatchId      String?
+  scheduledAt      DateTime?
+  completedAt      DateTime?
+  reportedById     String?
+
+  tournament       Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, round])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  read      Boolean          @default(false)
+  linkUrl   String?
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+}
