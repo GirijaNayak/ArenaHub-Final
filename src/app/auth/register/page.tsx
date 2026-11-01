@@ -47,8 +47,7 @@ export default function RegisterPage() {
   const roleOptions = [
     { id: "PLAYER", label: "⚡ Squad Player", desc: "Join rosters & compete in lobbies" },
     { id: "TEAM_CAPTAIN", label: "🛡️ Squad Captain", desc: "Lead 4-player squad & file disputes" },
-    { id: "TOURNAMENT_ORGANIZER", label: "🎯 Tournament Organizer", desc: "Create tournaments & manage lobbies" },
-    { id: "REFEREE", label: "⚖️ Senior Referee", desc: "Verify scores & resolve disputes" },
+    { id: "SPECTATOR", label: "👁️ Community Spectator", desc: "Follow public standings & live results" },
   ];
 
   return (

@@ -30,12 +30,24 @@ export class DisputeService {
         },
       },
       include: {
-        lobby: { include: { tournament: true } },
+        lobby: {
+          include: {
+            tournament: {
+              include: {
+                organization: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!lobbyTeam) {
       throw new Error("Your team was not assigned to this lobby");
+    }
+
+    if (lobbyTeam.lobby.tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
     }
 
     // Prevent duplicate open disputes
@@ -98,9 +110,9 @@ export class DisputeService {
         entityType: "DISPUTE",
         entityId: dispute.id,
         metadata: JSON.stringify({
-          teamId: data.teamId,
           reason: data.reason,
-          lobbyId: data.lobbyId,
+          teamTag: team.tag,
+          teamName: team.name,
         }),
       },
     });
@@ -110,6 +122,8 @@ export class DisputeService {
 
   /**
    * Referee resolves or rejects a dispute, with optional score correction
+   * Security Invariant: Only verified referees/organizers of this tournament's organization or platform admins can resolve disputes.
+   * Captains cannot resolve their own or any other disputes.
    */
   static async resolveDispute(
     refereeId: string,
@@ -119,7 +133,19 @@ export class DisputeService {
     const dispute = await prisma.dispute.findUnique({
       where: { id: disputeId },
       include: {
-        lobby: { include: { tournament: true } },
+        lobby: {
+          include: {
+            tournament: {
+              include: {
+                organization: {
+                  include: {
+                    members: { where: { userId: refereeId } },
+                  },
+                },
+              },
+            },
+          },
+        },
         team: true,
       },
     });
@@ -130,111 +156,146 @@ export class DisputeService {
       throw new Error("This dispute has already been concluded");
     }
 
-    // If score correction is applied upon resolution
-    if (data.status === "RESOLVED" && data.correctedPlacement !== undefined && data.correctedKills !== undefined) {
-      const scoringConfig = ScoringService.parseConfig(dispute.lobby.tournament.scoringConfig);
-      const calculated = ScoringService.calculatePoints(
-        data.correctedPlacement,
-        data.correctedKills,
-        scoringConfig
-      );
-
-      // Upsert the corrected result
-      await prisma.lobbyResult.upsert({
-        where: {
-          lobbyId_teamId: {
-            lobbyId: dispute.lobbyId,
-            teamId: dispute.teamId,
-          },
-        },
-        update: {
-          placement: data.correctedPlacement,
-          kills: data.correctedKills,
-          placementPoints: calculated.placementPoints,
-          killPoints: calculated.killPoints,
-          totalPoints: calculated.totalPoints,
-          status: "VERIFIED",
-          verifiedById: refereeId,
-          verifiedAt: new Date(),
-        },
-        create: {
-          lobbyId: dispute.lobbyId,
-          teamId: dispute.teamId,
-          placement: data.correctedPlacement,
-          kills: data.correctedKills,
-          placementPoints: calculated.placementPoints,
-          killPoints: calculated.killPoints,
-          totalPoints: calculated.totalPoints,
-          status: "VERIFIED",
-          verifiedById: refereeId,
-          verifiedAt: new Date(),
-        },
-      });
+    const org = dispute.lobby.tournament.organization;
+    if (org.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
     }
 
-    const updatedDispute = await prisma.dispute.update({
-      where: { id: disputeId },
-      data: {
-        status: data.status,
-        refereeId,
-        resolutionNotes: data.resolutionNotes,
-        resolvedAt: data.status === "RESOLVED" || data.status === "REJECTED" ? new Date() : null,
-      },
-      include: {
-        team: true,
-        lobby: true,
-      },
+    // Verify actor is authorized referee, organizer, or platform admin
+    const actorUser = await prisma.user.findUnique({
+      where: { id: refereeId },
+      select: { role: true },
     });
+    const isPlatformAdmin = actorUser?.role === "PLATFORM_ADMIN";
 
-    // Notify captain
-    await prisma.notification.create({
-      data: {
-        userId: dispute.team.captainId,
-        title: `Dispute ${data.status === "RESOLVED" ? "Resolved" : data.status === "REJECTED" ? "Rejected" : "Under Review"}`,
-        message: `Your dispute for ${dispute.lobby.title} was marked ${data.status}. Notes: ${data.resolutionNotes}`,
-        type: "DISPUTE",
-        linkUrl: `/tournaments/${dispute.lobby.tournament.slug}`,
-      },
-    });
+    // Strict Captain self-adjudication block
+    if (dispute.raisedById === refereeId && !isPlatformAdmin) {
+      throw new Error("Forbidden: Captains cannot adjudicate disputes they filed");
+    }
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        actorId: refereeId,
-        organizationId: dispute.lobby.tournament.organizationId,
-        action: "DISPUTE_RESOLVED",
-        entityType: "DISPUTE",
-        entityId: dispute.id,
-        metadata: JSON.stringify({
+    const isOrgStaff =
+      isPlatformAdmin ||
+      dispute.lobby.tournament.organizerId === refereeId ||
+      org.ownerId === refereeId ||
+      org.members.some((m) => m.role === "REFEREE" || m.role === "TOURNAMENT_ORGANIZER");
+
+    if (!isOrgStaff) {
+      throw new Error("Forbidden: You are not an authorized referee or organizer for this organization's tournament");
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // If score correction is applied upon resolution
+      if (data.status === "RESOLVED" && data.correctedPlacement !== undefined && data.correctedKills !== undefined) {
+        const scoringConfig = ScoringService.parseConfig(dispute.lobby.tournament.scoringConfig);
+        const calculated = ScoringService.calculatePoints(
+          data.correctedPlacement,
+          data.correctedKills,
+          scoringConfig
+        );
+
+        // Upsert the corrected result
+        await tx.lobbyResult.upsert({
+          where: {
+            lobbyId_teamId: {
+              lobbyId: dispute.lobbyId,
+              teamId: dispute.teamId,
+            },
+          },
+          update: {
+            placement: data.correctedPlacement,
+            kills: data.correctedKills,
+            placementPoints: calculated.placementPoints,
+            killPoints: calculated.killPoints,
+            totalPoints: calculated.totalPoints,
+            status: "VERIFIED",
+            verifiedById: refereeId,
+            verifiedAt: new Date(),
+          },
+          create: {
+            lobbyId: dispute.lobbyId,
+            teamId: dispute.teamId,
+            placement: data.correctedPlacement,
+            kills: data.correctedKills,
+            placementPoints: calculated.placementPoints,
+            killPoints: calculated.killPoints,
+            totalPoints: calculated.totalPoints,
+            status: "VERIFIED",
+            verifiedById: refereeId,
+            verifiedAt: new Date(),
+          },
+        });
+      }
+
+      const updatedDispute = await tx.dispute.update({
+        where: { id: disputeId },
+        data: {
           status: data.status,
-          notes: data.resolutionNotes,
-          correctedPlacement: data.correctedPlacement,
-          correctedKills: data.correctedKills,
-        }),
-      },
-    });
+          refereeId,
+          resolutionNotes: data.resolutionNotes,
+          resolvedAt: data.status === "RESOLVED" || data.status === "REJECTED" ? new Date() : null,
+        },
+        include: {
+          team: true,
+          lobby: true,
+        },
+      });
 
-    return updatedDispute;
+      // Notify captain
+      await tx.notification.create({
+        data: {
+          userId: dispute.team.captainId,
+          title: `Dispute ${data.status === "RESOLVED" ? "Resolved" : data.status === "REJECTED" ? "Rejected" : "Under Review"}`,
+          message: `Your dispute for ${dispute.lobby.title} was marked ${data.status}. Notes: ${data.resolutionNotes}`,
+          type: "DISPUTE",
+          linkUrl: `/tournaments/${dispute.lobby.tournament.slug}`,
+        },
+      });
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: refereeId,
+          organizationId: dispute.lobby.tournament.organizationId,
+          action: "DISPUTE_RESOLVED",
+          entityType: "DISPUTE",
+          entityId: dispute.id,
+          metadata: JSON.stringify({
+            status: data.status,
+            notes: data.resolutionNotes,
+            correctedPlacement: data.correctedPlacement,
+            correctedKills: data.correctedKills,
+          }),
+        },
+      });
+
+      return updatedDispute;
+    });
   }
 
   /**
-   * List disputes for tournament or organization
+   * List disputes with tenant filtering
    */
-  static async listDisputes(filters: {
+  static async listDisputes({
+    tournamentId,
+    organizationId,
+    status,
+    page = 1,
+    limit = 20,
+  }: {
     tournamentId?: string;
     organizationId?: string;
     status?: string;
     page?: number;
     limit?: number;
   }) {
-    const page = filters.page || 1;
-    const limit = filters.limit || 20;
-    const skip = (page - 1) * limit;
-
     const where: any = {};
-    if (filters.tournamentId) where.tournamentId = filters.tournamentId;
-    if (filters.organizationId) where.tournament = { organizationId: filters.organizationId };
-    if (filters.status) where.status = filters.status;
+    if (tournamentId) where.tournamentId = tournamentId;
+    if (status && status !== "ALL") where.status = status;
+    if (organizationId) {
+      where.tournament = { organizationId };
+    }
+
+    const skip = (page - 1) * limit;
 
     const [total, disputes] = await Promise.all([
       prisma.dispute.count({ where }),
@@ -244,14 +305,23 @@ export class DisputeService {
         take: limit,
         orderBy: { createdAt: "desc" },
         include: {
-          team: { select: { id: true, name: true, tag: true } },
-          lobby: { select: { id: true, title: true, lobbyNumber: true } },
-          raisedBy: { select: { id: true, username: true } },
-          referee: { select: { id: true, username: true } },
+          team: { select: { id: true, name: true, tag: true, logoUrl: true } },
+          lobby: { select: { id: true, title: true, mapName: true, lobbyNumber: true } },
+          tournament: { select: { id: true, title: true, slug: true } },
+          raisedBy: { select: { id: true, username: true, name: true } },
+          referee: { select: { id: true, username: true, name: true } },
         },
       }),
     ]);
 
-    return { disputes, total, page, limit };
+    return {
+      disputes,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }
