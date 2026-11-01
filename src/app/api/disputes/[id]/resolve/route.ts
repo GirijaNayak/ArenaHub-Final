@@ -10,7 +10,14 @@ export async function POST(
   try {
     const session = await getSessionUser(req);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Authentication required" }, { status: 401 });
+    }
+
+    if (session.role === "PLAYER" || session.role === "SPECTATOR" || session.role === "TEAM_CAPTAIN") {
+      return NextResponse.json(
+        { error: "Forbidden: Only tournament referees or organizers can adjudicate disputes" },
+        { status: 403 }
+      );
     }
 
     const { id: disputeId } = await params;

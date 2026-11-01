@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+/**
+ * Strict HTTP/HTTPS URL schema preventing javascript: or data: XSS payloads
+ */
+export const safeHttpUrlSchema = z
+  .string()
+  .refine(
+    (url) => !url || /^https?:\/\/[^\s$.?#].[^\s]*$/i.test(url),
+    "URL must start with http:// or https://"
+  )
+  .optional()
+  .or(z.literal(""));
+
 export const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(50),
   username: z
@@ -9,14 +21,10 @@ export const registerSchema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain alphanumeric characters, underscores, and dashes"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  // Security Hardening: Public self-registration only permits competitor/spectator roles.
+  // Administrative & Referee roles can only be granted by org owners or platform admins.
   role: z
-    .enum([
-      "PLAYER",
-      "TEAM_CAPTAIN",
-      "TOURNAMENT_ORGANIZER",
-      "REFEREE",
-      "SPECTATOR",
-    ])
+    .enum(["PLAYER", "TEAM_CAPTAIN", "SPECTATOR"])
     .default("PLAYER"),
   inGameId: z.string().optional(),
   inGameName: z.string().optional(),
@@ -35,11 +43,16 @@ export const createOrgSchema = z.object({
     .max(30)
     .regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens"),
   description: z.string().max(300).optional(),
-  logoUrl: z.string().url().optional().or(z.literal("")),
+  logoUrl: safeHttpUrlSchema,
 });
 
 export const updateOrgStatusSchema = z.object({
   status: z.enum(["ACTIVE", "SUSPENDED"]),
+});
+
+export const setOrgMemberRoleSchema = z.object({
+  usernameOrEmail: z.string().min(1, "Username or email is required"),
+  role: z.enum(["TOURNAMENT_ORGANIZER", "REFEREE", "MEMBER"]),
 });
 
 export const createTournamentSchema = z.object({
@@ -56,7 +69,7 @@ export const createTournamentSchema = z.object({
   tournamentStart: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid date"),
   tournamentEnd: z.string().optional(),
   prizePool: z.number().int().min(0).default(0),
-  bannerUrl: z.string().url().optional().or(z.literal("")),
+  bannerUrl: safeHttpUrlSchema,
 });
 
 export const updateTournamentStatusSchema = z.object({
@@ -79,7 +92,7 @@ export const createTeamSchema = z.object({
     .regex(/^[a-zA-Z0-9]+$/, "Tag must be alphanumeric")
     .toUpperCase(),
   description: z.string().max(250).optional(),
-  logoUrl: z.string().url().optional().or(z.literal("")),
+  logoUrl: safeHttpUrlSchema,
   players: z
     .array(
       z.object({
@@ -133,7 +146,7 @@ export const submitLobbyResultSchema = z.object({
   teamId: z.string().min(1),
   placement: z.number().int().min(1, "Placement must be at least 1").max(50),
   kills: z.number().int().min(0, "Kills cannot be negative"),
-  screenshotUrl: z.string().url().optional().or(z.literal("")),
+  screenshotUrl: safeHttpUrlSchema,
 });
 
 export const verifyLobbyResultSchema = z.object({
@@ -155,7 +168,7 @@ export const createDisputeSchema = z.object({
     "OTHER",
   ]),
   description: z.string().min(10, "Please provide detailed context for your dispute"),
-  evidenceUrl: z.string().url().optional().or(z.literal("")),
+  evidenceUrl: safeHttpUrlSchema,
 });
 
 export const resolveDisputeSchema = z.object({
@@ -176,4 +189,3 @@ export const updateUserRoleSchema = z.object({
     "PLATFORM_ADMIN",
   ]),
 });
-

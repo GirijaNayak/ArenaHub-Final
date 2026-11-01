@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AdminService } from "@/services/admin.service";
-import { getSessionUser, requireRole } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSessionUser(req);
-    if (!session || !requireRole(session, ["ADMIN"])) {
-      return NextResponse.json({ error: "Forbidden: Admin credentials required" }, { status: 403 });
-    }
+    await requirePlatformAdmin(req);
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || undefined;
@@ -18,6 +15,9 @@ export async function GET(req: NextRequest) {
     const result = await AdminService.listUsers({ search, role, page, limit });
     return NextResponse.json(result);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Forbidden: Platform administrator credentials required" },
+      { status: error.message?.includes("Unauthorized") ? 401 : 403 }
+    );
   }
 }

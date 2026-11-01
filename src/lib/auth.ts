@@ -5,8 +5,18 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 
 export const AUTH_COOKIE_NAME = "arenahub_session";
-const JWT_SECRET =
-  process.env.AUTH_SECRET || "arenahub-super-secret-development-key-32-chars-long!";
+function getJwtSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret === "arenahub-super-secret-development-key-32-chars-long!" || secret.length < 32) {
+      throw new Error(
+        "CRITICAL SECURITY CONFIGURATION: AUTH_SECRET must be set to a secure key of at least 32 characters in production"
+      );
+    }
+    return secret;
+  }
+  return secret || "arenahub-super-secret-development-key-32-chars-long!";
+}
 
 export type AppRole =
   | "PLAYER"
@@ -34,12 +44,12 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function signSessionToken(payload: SessionPayload): Promise<string> {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, getJwtSecret(), { algorithm: "HS256", expiresIn: "7d" });
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as SessionPayload;
     return decoded;
   } catch {
     return null;
@@ -122,6 +132,52 @@ export async function requireOrgMembership(
 
   if (membership.organization.status === "SUSPENDED") {
     throw new Error("Forbidden: This organization is currently suspended");
+  }
+
+  return membership;
+}
+
+/**
+ * Multi-tenant organization staff role assertion
+ */
+export async function requireOrgStaff(
+  userId: string,
+  userRole: AppRole,
+  organizationId: string,
+  allowedRoles: string[] = ["TOURNAMENT_ORGANIZER", "REFEREE"]
+) {
+  if (userRole === "PLATFORM_ADMIN") {
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!org) throw new Error("Organization not found");
+    if (org.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+    return { organization: org, role: "PLATFORM_ADMIN" };
+  }
+
+  const membership = await prisma.orgMembership.findUnique({
+    where: {
+      organizationId_userId: {
+        organizationId,
+        userId,
+      },
+    },
+    include: {
+      organization: true,
+    },
+  });
+
+  if (!membership) {
+    throw new Error("Forbidden: You are not authorized for this organization");
+  }
+
+  if (membership.organization.status === "SUSPENDED") {
+    throw new Error("Forbidden: This organization is currently suspended");
+  }
+
+  const isOwner = membership.organization.ownerId === userId;
+  if (!isOwner && !allowedRoles.includes(membership.role)) {
+    throw new Error(`Forbidden: Required staff role in this organization: [${allowedRoles.join(", ")}]`);
   }
 
   return membership;

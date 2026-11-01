@@ -2,9 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/services/auth.service";
 import { registerSchema } from "@/lib/validations";
 import { AUTH_COOKIE_NAME } from "@/lib/auth";
+import { rateLimiter } from "@/lib/rate-limiter";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: 5 registration attempts per minute per IP
+    const clientIp = rateLimiter.getClientIp(req);
+    const limitResult = rateLimiter.check(`register:${clientIp}`, 5, 60 * 1000);
+
+    if (!limitResult.success) {
+      return NextResponse.json(
+        { error: "Too many accounts created from this IP. Please wait before retrying." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(limitResult.resetInMs / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const validated = registerSchema.safeParse(body);
 

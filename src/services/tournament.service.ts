@@ -1,30 +1,42 @@
 import { prisma } from "@/lib/db";
-import { z } from "zod";
-import { createTournamentSchema, updateTournamentStatusSchema } from "@/lib/validations";
+import { ScoringService, DEFAULT_BGMI_SCORING } from "./scoring.service";
 import { StandingsService } from "./standings.service";
-import { DEFAULT_BGMI_SCORING } from "./scoring.service";
+import { z } from "zod";
+import { createTournamentSchema } from "@/lib/validations";
 
 export class TournamentService {
   /**
-   * Create a new Battle-Royale tournament scoped to an Organization
+   * Create a new Battle-Royale tournament scoped to an active organization
    */
   static async create(
     organizerId: string,
     data: z.infer<typeof createTournamentSchema>
   ) {
-    // Verify membership in organization
-    const membership = await prisma.orgMembership.findUnique({
-      where: {
-        organizationId_userId: {
-          organizationId: data.organizationId,
-          userId: organizerId,
-        },
+    // Verify organization and permissions
+    const org = await prisma.organization.findUnique({
+      where: { id: data.organizationId },
+      include: {
+        members: { where: { userId: organizerId } },
       },
-      include: { organization: true },
     });
 
-    if (!membership || membership.organization.status === "SUSPENDED") {
-      throw new Error("Forbidden: You must be an active member of this organization");
+    if (!org) throw new Error("Organization not found");
+
+    if (org.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+
+    const isOwner = org.ownerId === organizerId;
+    const isOrgStaff = org.members.some((m) => m.role === "TOURNAMENT_ORGANIZER");
+
+    const actorUser = await prisma.user.findUnique({
+      where: { id: organizerId },
+      select: { role: true },
+    });
+    const isPlatformAdmin = actorUser?.role === "PLATFORM_ADMIN";
+
+    if (!isOwner && !isOrgStaff && !isPlatformAdmin) {
+      throw new Error("Forbidden: Only authorized tournament organizers of this organization can create tournaments");
     }
 
     const baseSlug = data.title
@@ -78,7 +90,7 @@ export class TournamentService {
   }
 
   /**
-   * List tournaments with multi-tenant filtering, search, and pagination
+   * List tournaments with tenant, status, and game filters
    */
   static async list({
     search,
@@ -95,7 +107,6 @@ export class TournamentService {
     page?: number;
     limit?: number;
   }) {
-    const skip = (page - 1) * limit;
     const where: any = {};
 
     if (search) {
@@ -104,9 +115,17 @@ export class TournamentService {
         { description: { contains: search } },
       ];
     }
-    if (game) where.game = game;
-    if (status) where.status = status;
-    if (organizationId) where.organizationId = organizationId;
+    if (game && game !== "ALL") {
+      where.game = game;
+    }
+    if (status && status !== "ALL") {
+      where.status = status;
+    }
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+
+    const skip = (page - 1) * limit;
 
     const [total, tournaments] = await Promise.all([
       prisma.tournament.count({ where }),
@@ -114,10 +133,9 @@ export class TournamentService {
         where,
         skip,
         take: limit,
-        orderBy: [{ isFeatured: "desc" }, { tournamentStart: "asc" }],
+        orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
         include: {
           organization: { select: { id: true, name: true, slug: true, logoUrl: true } },
-          organizer: { select: { username: true } },
           _count: {
             select: { registrations: true, lobbies: true },
           },
@@ -138,6 +156,7 @@ export class TournamentService {
 
   /**
    * Get single tournament by slug with lobbies, registrations, and live standings
+   * Security Hardening: Scrub private room credentials from all lobbies in the public view.
    */
   static async getBySlug(slug: string) {
     const tournament = await prisma.tournament.findUnique({
@@ -182,14 +201,23 @@ export class TournamentService {
     // Compute live standings
     const standings = await StandingsService.getTournamentStandings(tournament.id);
 
+    // Security Invariant: Public tournament view MUST NEVER leak room credentials.
+    // Credentials are exclusively served through getLobbySecure() after time-lock verification.
+    const sanitizedLobbies = tournament.lobbies.map((lobby) => ({
+      ...lobby,
+      roomId: null,
+      roomPassword: null,
+    }));
+
     return {
       ...tournament,
+      lobbies: sanitizedLobbies,
       standings,
     };
   }
 
   /**
-   * Register a 4-player squad for a tournament
+   * Register a 4-player squad for a tournament with race-condition prevention
    */
   static async registerSquad(
     userId: string,
@@ -199,11 +227,16 @@ export class TournamentService {
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
+        organization: true,
         registrations: true,
       },
     });
 
     if (!tournament) throw new Error("Tournament not found");
+
+    if (tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended. Registrations are blocked.");
+    }
 
     if (tournament.status !== "REGISTRATION_OPEN") {
       throw new Error(`Registration is not currently open (Status: ${tournament.status})`);
@@ -215,10 +248,6 @@ export class TournamentService {
     }
     if (now > new Date(tournament.registrationEnd)) {
       throw new Error("Registration deadline has passed");
-    }
-
-    if (tournament.registrations.length >= tournament.teamCapacity) {
-      throw new Error(`Tournament capacity of ${tournament.teamCapacity} teams has been reached`);
     }
 
     // Verify user is team captain
@@ -253,16 +282,27 @@ export class TournamentService {
       throw new Error("Your team is already registered for this tournament");
     }
 
-    const registration = await prisma.tournamentRegistration.create({
-      data: {
-        tournamentId,
-        teamId,
-        registeredById: userId,
-        status: "CONFIRMED",
-      },
-      include: {
-        team: true,
-      },
+    // Race-condition prevention: atomic capacity check & registration
+    const registration = await prisma.$transaction(async (tx) => {
+      const currentCount = await tx.tournamentRegistration.count({
+        where: { tournamentId },
+      });
+
+      if (currentCount >= tournament.teamCapacity) {
+        throw new Error(`Tournament capacity of ${tournament.teamCapacity} teams has been reached`);
+      }
+
+      return tx.tournamentRegistration.create({
+        data: {
+          tournamentId,
+          teamId,
+          registeredById: userId,
+          status: "CONFIRMED",
+        },
+        include: {
+          team: true,
+        },
+      });
     });
 
     // Notify captain
@@ -270,7 +310,7 @@ export class TournamentService {
       data: {
         userId,
         title: "Tournament Registration Confirmed",
-        message: `Team [${team.tag}] ${team.name} successfully registered for ${tournament.title}.`,
+        message: `Your squad ${team.name} has been confirmed for ${tournament.title}. Prepare for lobby slotting!`,
         type: "REGISTRATION",
         linkUrl: `/tournaments/${tournament.slug}`,
       },
@@ -281,10 +321,10 @@ export class TournamentService {
       data: {
         actorId: userId,
         organizationId: tournament.organizationId,
-        action: "TEAM_REGISTERED",
+        action: "SQUAD_REGISTERED",
         entityType: "TOURNAMENT",
         entityId: tournament.id,
-        metadata: JSON.stringify({ teamId, teamTag: team.tag }),
+        metadata: JSON.stringify({ teamName: team.name, teamTag: team.tag }),
       },
     });
 
@@ -292,7 +332,7 @@ export class TournamentService {
   }
 
   /**
-   * Transition tournament status with state machine validation
+   * Transition tournament status with state machine and authorization validation
    */
   static async updateStatus(
     userId: string,
@@ -308,12 +348,21 @@ export class TournamentService {
 
     if (!tournament) throw new Error("Tournament not found");
 
+    if (tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+
+    const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const isPlatformAdmin = actor?.role === "PLATFORM_ADMIN";
+
     const isOrgMember =
+      isPlatformAdmin ||
       tournament.organizerId === userId ||
+      tournament.organization.ownerId === userId ||
       tournament.organization.members.some((m) => m.role === "TOURNAMENT_ORGANIZER");
 
     if (!isOrgMember) {
-      throw new Error("Unauthorized: Only tournament organizers can modify lifecycle status");
+      throw new Error("Forbidden: Only tournament organizers of this organization can modify lifecycle status");
     }
 
     const validTransitions: { [key: string]: string[] } = {
@@ -339,7 +388,7 @@ export class TournamentService {
       data: {
         actorId: userId,
         organizationId: tournament.organizationId,
-        action: "TOURNAMENT_STATUS_CHANGED",
+        action: "TOURNAMENT_STATUS_UPDATED",
         entityType: "TOURNAMENT",
         entityId: tournament.id,
         metadata: JSON.stringify({ from: tournament.status, to: newStatus }),

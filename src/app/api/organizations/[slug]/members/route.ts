@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OrganizationService } from "@/services/organization.service";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { setOrgMemberRoleSchema } from "@/lib/validations";
 
 export async function POST(
   req: NextRequest,
@@ -10,25 +11,29 @@ export async function POST(
   try {
     const session = await getSessionUser(req);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Authentication required" }, { status: 401 });
     }
 
     const { slug } = await params;
     const org = await prisma.organization.findUnique({
       where: { slug },
-      select: { id: true },
+      select: { id: true, status: true },
     });
 
     if (!org) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    const body = await req.json();
-    const { usernameOrEmail, role } = body;
+    if (org.status === "SUSPENDED") {
+      return NextResponse.json({ error: "Forbidden: This organization is currently suspended" }, { status: 403 });
+    }
 
-    if (!usernameOrEmail || !role) {
+    const body = await req.json();
+    const validated = setOrgMemberRoleSchema.safeParse(body);
+
+    if (!validated.success) {
       return NextResponse.json(
-        { error: "usernameOrEmail and role ('TOURNAMENT_ORGANIZER' | 'REFEREE' | 'MEMBER') are required" },
+        { error: "Validation failed", details: validated.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
@@ -36,8 +41,8 @@ export async function POST(
     const targetUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { username: usernameOrEmail.toLowerCase() },
-          { email: usernameOrEmail.toLowerCase() },
+          { username: validated.data.usernameOrEmail.toLowerCase() },
+          { email: validated.data.usernameOrEmail.toLowerCase() },
         ],
       },
     });
@@ -50,7 +55,7 @@ export async function POST(
       session.userId,
       org.id,
       targetUser.id,
-      role
+      validated.data.role
     );
 
     return NextResponse.json({ message: "Staff role assigned successfully", membership });

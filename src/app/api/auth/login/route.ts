@@ -2,9 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/services/auth.service";
 import { loginSchema } from "@/lib/validations";
 import { AUTH_COOKIE_NAME } from "@/lib/auth";
+import { rateLimiter } from "@/lib/rate-limiter";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: 10 login attempts per minute per IP
+    const clientIp = rateLimiter.getClientIp(req);
+    const limitResult = rateLimiter.check(`login:${clientIp}`, 10, 60 * 1000);
+
+    if (!limitResult.success) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please wait 60 seconds before retrying." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(limitResult.resetInMs / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const validated = loginSchema.safeParse(body);
 

@@ -10,7 +10,14 @@ export async function PATCH(
   try {
     const session = await getSessionUser(req);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Authentication required" }, { status: 401 });
+    }
+
+    if (session.role === "PLAYER" || session.role === "SPECTATOR" || session.role === "TEAM_CAPTAIN") {
+      return NextResponse.json(
+        { error: "Forbidden: Only tournament referees or organizers can verify match results" },
+        { status: 403 }
+      );
     }
 
     const { id: resultId } = await params;

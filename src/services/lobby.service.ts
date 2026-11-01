@@ -20,17 +20,31 @@ export class LobbyService {
   ) {
     const tournament = await prisma.tournament.findUnique({
       where: { id: data.tournamentId },
-      include: { organization: { include: { members: { where: { userId: organizerId } } } } },
+      include: {
+        organization: { include: { members: { where: { userId: organizerId } } } },
+      },
     });
 
     if (!tournament) throw new Error("Tournament not found");
 
+    if (tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+
+    const actorUser = await prisma.user.findUnique({
+      where: { id: organizerId },
+      select: { role: true },
+    });
+    const isPlatformAdmin = actorUser?.role === "PLATFORM_ADMIN";
+
     const isAuthorized =
+      isPlatformAdmin ||
       tournament.organizerId === organizerId ||
+      tournament.organization.ownerId === organizerId ||
       tournament.organization.members.some((m) => m.role === "TOURNAMENT_ORGANIZER");
 
     if (!isAuthorized) {
-      throw new Error("Forbidden: Only organization organizers can create lobbies");
+      throw new Error("Forbidden: Only authorized organization organizers can create lobbies");
     }
 
     const scheduledTime = new Date(data.scheduledTime);
@@ -86,10 +100,36 @@ export class LobbyService {
   ) {
     const lobby = await prisma.lobby.findUnique({
       where: { id: lobbyId },
-      include: { tournament: true },
+      include: {
+        tournament: {
+          include: {
+            organization: { include: { members: { where: { userId: organizerId } } } },
+          },
+        },
+      },
     });
 
     if (!lobby) throw new Error("Lobby not found");
+
+    if (lobby.tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+
+    const actorUser = await prisma.user.findUnique({
+      where: { id: organizerId },
+      select: { role: true },
+    });
+    const isPlatformAdmin = actorUser?.role === "PLATFORM_ADMIN";
+
+    const isAuthorized =
+      isPlatformAdmin ||
+      lobby.tournament.organizerId === organizerId ||
+      lobby.tournament.organization.ownerId === organizerId ||
+      lobby.tournament.organization.members.some((m) => m.role === "TOURNAMENT_ORGANIZER");
+
+    if (!isAuthorized) {
+      throw new Error("Forbidden: Only tournament organizers of this organization can assign teams to slots");
+    }
 
     // Verify team is registered for this tournament
     const registration = await prisma.tournamentRegistration.findUnique({
@@ -166,12 +206,36 @@ export class LobbyService {
     const lobby = await prisma.lobby.findUnique({
       where: { id: lobbyId },
       include: {
-        tournament: true,
+        tournament: {
+          include: {
+            organization: { include: { members: { where: { userId: actorId } } } },
+          },
+        },
         teams: { include: { team: true } },
       },
     });
 
     if (!lobby) throw new Error("Lobby not found");
+
+    if (lobby.tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+
+    const actorUser = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: { role: true },
+    });
+    const isPlatformAdmin = actorUser?.role === "PLATFORM_ADMIN";
+
+    const isAuthorized =
+      isPlatformAdmin ||
+      lobby.tournament.organizerId === actorId ||
+      lobby.tournament.organization.ownerId === actorId ||
+      lobby.tournament.organization.members.some((m) => m.role === "TOURNAMENT_ORGANIZER");
+
+    if (!isAuthorized) {
+      throw new Error("Forbidden: Only organization organizers can update room credentials");
+    }
 
     const updated = await prisma.lobby.update({
       where: { id: lobbyId },
@@ -190,7 +254,7 @@ export class LobbyService {
           data: {
             userId: lt.team.captainId,
             title: "Room Credentials Posted",
-            message: `Credentials posted for ${lobby.title}. Will be unlocked at reveal time: ${new Date(updated.revealTime).toLocaleTimeString()}.`,
+            message: `Room details for ${lobby.title} have been configured. Access will unlock at ${new Date(lobby.revealTime).toLocaleTimeString()}.`,
             type: "CREDENTIALS",
             linkUrl: `/tournaments/${lobby.tournament.slug}`,
           },
@@ -203,13 +267,13 @@ export class LobbyService {
       data: {
         actorId,
         organizationId: lobby.tournament.organizationId,
-        action: "ROOM_CREDENTIALS_UPDATED",
+        action: "LOBBY_CREDENTIALS_UPDATED",
         entityType: "LOBBY",
         entityId: lobby.id,
         metadata: JSON.stringify({
           status: updated.status,
+          hasRoomId: !!updated.roomId,
           revealTime: updated.revealTime,
-          hasRoomId: Boolean(updated.roomId),
         }),
       },
     });
@@ -218,7 +282,7 @@ export class LobbyService {
   }
 
   /**
-   * Retrieve lobby with strict server-side credential filtering
+   * Secure Lobby Fetcher with time-lock and role-aware credential filter
    */
   static async getLobbySecure(
     lobbyId: string,
@@ -233,8 +297,16 @@ export class LobbyService {
             id: true,
             title: true,
             slug: true,
+            organizerId: true,
             scoringConfig: true,
-            organizationId: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                members: userId ? { where: { userId } } : false,
+              },
+            },
           },
         },
         teams: {
@@ -289,7 +361,7 @@ export class LobbyService {
   }
 
   /**
-   * Submit match results for a team in the lobby
+   * Submit match results for a team in the lobby with IDOR, verified-lock, and transaction safeguards
    */
   static async submitResult(
     userId: string,
@@ -297,67 +369,135 @@ export class LobbyService {
   ) {
     const lobby = await prisma.lobby.findUnique({
       where: { id: data.lobbyId },
-      include: { tournament: true },
+      include: {
+        tournament: {
+          include: {
+            organization: {
+              include: { members: { where: { userId } } },
+            },
+          },
+        },
+      },
     });
 
     if (!lobby) throw new Error("Lobby not found");
 
-    // Parse tournament scoring rules
-    const scoringConfig = ScoringService.parseConfig(lobby.tournament.scoringConfig);
-    const calculated = ScoringService.calculatePoints(data.placement, data.kills, scoringConfig);
+    if (lobby.tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
 
-    const result = await prisma.lobbyResult.upsert({
+    if (lobby.status === "CANCELLED") {
+      throw new Error("Cannot submit results for a cancelled lobby");
+    }
+
+    // Verify caller authorization:
+    // User MUST be:
+    // 1. Team Captain of data.teamId, OR
+    // 2. Roster member of data.teamId, OR
+    // 3. Tournament Organizer / Referee of this organization, OR
+    // 4. Platform Admin
+    const team = await prisma.team.findUnique({
+      where: { id: data.teamId },
+      include: { players: true },
+    });
+
+    if (!team) throw new Error("Team not found");
+
+    const actor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    const isPlatformAdmin = actor?.role === "PLATFORM_ADMIN";
+
+    const isTeamMember =
+      team.captainId === userId ||
+      team.players.some((p) => p.userId === userId);
+
+    const isOrgStaff =
+      lobby.tournament.organizerId === userId ||
+      lobby.tournament.organization.ownerId === userId ||
+      lobby.tournament.organization.members.some((m) =>
+        m.role === "TOURNAMENT_ORGANIZER" || m.role === "REFEREE"
+      );
+
+    if (!isPlatformAdmin && !isTeamMember && !isOrgStaff) {
+      throw new Error("Forbidden: You are not authorized to submit match results for this squad");
+    }
+
+    // Check existing result lock: If status is already VERIFIED, only staff can overwrite
+    const existing = await prisma.lobbyResult.findUnique({
       where: {
         lobbyId_teamId: {
           lobbyId: data.lobbyId,
           teamId: data.teamId,
         },
       },
-      update: {
-        placement: data.placement,
-        kills: data.kills,
-        placementPoints: calculated.placementPoints,
-        killPoints: calculated.killPoints,
-        totalPoints: calculated.totalPoints,
-        screenshotUrl: data.screenshotUrl || null,
-        submittedById: userId,
-        status: "SUBMITTED",
-        submittedAt: new Date(),
-      },
-      create: {
-        lobbyId: data.lobbyId,
-        teamId: data.teamId,
-        placement: data.placement,
-        kills: data.kills,
-        placementPoints: calculated.placementPoints,
-        killPoints: calculated.killPoints,
-        totalPoints: calculated.totalPoints,
-        screenshotUrl: data.screenshotUrl || null,
-        submittedById: userId,
-        status: "SUBMITTED",
-      },
-      include: {
-        team: true,
-      },
     });
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        actorId: userId,
-        organizationId: lobby.tournament.organizationId,
-        action: "RESULT_SUBMITTED",
-        entityType: "LOBBY_RESULT",
-        entityId: result.id,
-        metadata: JSON.stringify({
+    if (existing && existing.status === "VERIFIED" && !isOrgStaff && !isPlatformAdmin) {
+      throw new Error("Forbidden: This match result has been officially verified by referees. Submit a dispute to contest.");
+    }
+
+    // Parse tournament scoring rules
+    const scoringConfig = ScoringService.parseConfig(lobby.tournament.scoringConfig);
+    const calculated = ScoringService.calculatePoints(data.placement, data.kills, scoringConfig);
+
+    // Atomic transaction for database consistency
+    return prisma.$transaction(async (tx) => {
+      const result = await tx.lobbyResult.upsert({
+        where: {
+          lobbyId_teamId: {
+            lobbyId: data.lobbyId,
+            teamId: data.teamId,
+          },
+        },
+        update: {
           placement: data.placement,
           kills: data.kills,
+          placementPoints: calculated.placementPoints,
+          killPoints: calculated.killPoints,
           totalPoints: calculated.totalPoints,
-        }),
-      },
-    });
+          screenshotUrl: data.screenshotUrl || null,
+          submittedById: userId,
+          status: "SUBMITTED",
+          submittedAt: new Date(),
+        },
+        create: {
+          lobbyId: data.lobbyId,
+          teamId: data.teamId,
+          placement: data.placement,
+          kills: data.kills,
+          placementPoints: calculated.placementPoints,
+          killPoints: calculated.killPoints,
+          totalPoints: calculated.totalPoints,
+          screenshotUrl: data.screenshotUrl || null,
+          submittedById: userId,
+          status: "SUBMITTED",
+        },
+        include: {
+          team: true,
+        },
+      });
 
-    return result;
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          organizationId: lobby.tournament.organizationId,
+          action: "RESULT_SUBMITTED",
+          entityType: "LOBBY_RESULT",
+          entityId: result.id,
+          metadata: JSON.stringify({
+            teamTag: team.tag,
+            placement: data.placement,
+            kills: data.kills,
+            totalPoints: calculated.totalPoints,
+          }),
+        },
+      });
+
+      return result;
+    });
   }
 
   /**
@@ -371,57 +511,92 @@ export class LobbyService {
     const prev = await prisma.lobbyResult.findUnique({
       where: { id: resultId },
       include: {
-        lobby: { include: { tournament: true } },
+        lobby: {
+          include: {
+            tournament: {
+              include: {
+                organization: {
+                  include: { members: { where: { userId: refereeId } } },
+                },
+              },
+            },
+          },
+        },
         team: true,
       },
     });
 
     if (!prev) throw new Error("Match result not found");
 
+    if (prev.lobby.tournament.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: This organization is currently suspended");
+    }
+
+    const actor = await prisma.user.findUnique({
+      where: { id: refereeId },
+      select: { role: true },
+    });
+    const isPlatformAdmin = actor?.role === "PLATFORM_ADMIN";
+
+    const isStaff =
+      isPlatformAdmin ||
+      prev.lobby.tournament.organizerId === refereeId ||
+      prev.lobby.tournament.organization.ownerId === refereeId ||
+      prev.lobby.tournament.organization.members.some(
+        (m) => m.role === "REFEREE" || m.role === "TOURNAMENT_ORGANIZER"
+      );
+
+    if (!isStaff) {
+      throw new Error("Forbidden: Only official referees or organizers of this organization can verify match results");
+    }
+
     const scoringConfig = ScoringService.parseConfig(prev.lobby.tournament.scoringConfig);
     const calculated = ScoringService.calculatePoints(data.placement, data.kills, scoringConfig);
 
-    const updated = await prisma.lobbyResult.update({
-      where: { id: resultId },
-      data: {
-        placement: data.placement,
-        kills: data.kills,
-        placementPoints: calculated.placementPoints,
-        killPoints: calculated.killPoints,
-        totalPoints: calculated.totalPoints,
-        status: data.status,
-        verifiedById: refereeId,
-        verifiedAt: new Date(),
-      },
-    });
-
-    // Notify captain
-    await prisma.notification.create({
-      data: {
-        userId: prev.team.captainId,
-        title: "Match Result Verified",
-        message: `Results for ${prev.lobby.title} verified: #${data.placement} with ${data.kills} kills (${calculated.totalPoints} pts).`,
-        type: "RESULT",
-        linkUrl: `/tournaments/${prev.lobby.tournament.slug}`,
-      },
-    });
-
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        actorId: refereeId,
-        organizationId: prev.lobby.tournament.organizationId,
-        action: "RESULT_VERIFIED",
-        entityType: "LOBBY_RESULT",
-        entityId: resultId,
-        metadata: JSON.stringify({
-          previousPoints: prev.totalPoints,
-          verifiedPoints: calculated.totalPoints,
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.lobbyResult.update({
+        where: { id: resultId },
+        data: {
+          placement: data.placement,
+          kills: data.kills,
+          placementPoints: calculated.placementPoints,
+          killPoints: calculated.killPoints,
+          totalPoints: calculated.totalPoints,
           status: data.status,
-        }),
-      },
-    });
+          verifiedById: refereeId,
+          verifiedAt: new Date(),
+        },
+      });
 
-    return updated;
+      // Notify captain
+      await tx.notification.create({
+        data: {
+          userId: prev.team.captainId,
+          title: "Match Result Verified",
+          message: `Official referee verified Match Result for ${prev.lobby.title}. Squad finished #${data.placement} with ${data.kills} kills (${calculated.totalPoints} pts).`,
+          type: "RESULT",
+          linkUrl: `/tournaments/${prev.lobby.tournament.slug}`,
+        },
+      });
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: refereeId,
+          organizationId: prev.lobby.tournament.organizationId,
+          action: "RESULT_VERIFIED",
+          entityType: "LOBBY_RESULT",
+          entityId: resultId,
+          metadata: JSON.stringify({
+            placement: data.placement,
+            kills: data.kills,
+            totalPoints: calculated.totalPoints,
+            status: data.status,
+          }),
+        },
+      });
+
+      return updated;
+    });
   }
 }

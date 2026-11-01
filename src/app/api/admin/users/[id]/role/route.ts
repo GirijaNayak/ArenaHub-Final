@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AdminService } from "@/services/admin.service";
-import { getSessionUser, requireRole } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { updateUserRoleSchema } from "@/lib/validations";
 
 export async function PATCH(
@@ -8,11 +8,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSessionUser(req);
-    if (!session || !requireRole(session, ["ADMIN"])) {
-      return NextResponse.json({ error: "Forbidden: Admin credentials required" }, { status: 403 });
-    }
-
+    const session = await requirePlatformAdmin(req);
     const { id: targetUserId } = await params;
     const body = await req.json();
     const validated = updateUserRoleSchema.safeParse({ userId: targetUserId, role: body?.role });
@@ -32,6 +28,6 @@ export async function PATCH(
 
     return NextResponse.json({ message: "User role updated successfully", user: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: error.message?.includes("Forbidden") ? 403 : 400 });
   }
 }
