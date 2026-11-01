@@ -13,9 +13,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized: Authentication required" }, { status: 401 });
     }
 
-    if (session.role === "PLAYER" || session.role === "SPECTATOR") {
+    if (session.role === "PLAYER" || session.role === "SPECTATOR" || session.role === "TEAM_CAPTAIN") {
       return NextResponse.json(
-        { error: "Forbidden: Players and spectators cannot adjudicate disputes" },
+        { error: "Forbidden: Only tournament referees or organizers can adjudicate disputes" },
         { status: 403 }
       );
     }
