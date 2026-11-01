@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TournamentService } from "@/services/tournament.service";
-import { getSessionUser, requireRole } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import { createTournamentSchema } from "@/lib/validations";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || undefined;
-    const gameSlug = searchParams.get("game") || undefined;
+    const game = searchParams.get("game") || undefined;
     const status = searchParams.get("status") || undefined;
-    const type = searchParams.get("type") || undefined;
+    const organizationId = searchParams.get("organizationId") || undefined;
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "12", 10);
 
     const result = await TournamentService.list({
       search,
-      gameSlug,
+      game,
       status,
-      type,
+      organizationId,
       page,
       limit,
     });
@@ -31,11 +31,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSessionUser(req);
-    if (!session || !requireRole(session, ["ORGANIZER", "ADMIN"])) {
-      return NextResponse.json(
-        { error: "Forbidden: Organizer or Admin credentials required" },
-        { status: 403 }
-      );
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized: Please sign in" }, { status: 401 });
     }
 
     const body = await req.json();
@@ -49,11 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     const tournament = await TournamentService.create(session.userId, validated.data);
-
-    return NextResponse.json(
-      { message: "Tournament created successfully", tournament },
-      { status: 201 }
-    );
+    return NextResponse.json({ message: "Tournament created successfully", tournament }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

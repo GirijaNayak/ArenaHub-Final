@@ -11,13 +11,19 @@ import {
   ArrowLeft,
   CheckCircle,
   AlertCircle,
-  Play,
+  Plus,
   Settings,
+  Crosshair,
+  Award,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BracketView, BracketMatch } from "@/components/bracket-view";
-import { MatchReportModal } from "@/components/match-report-modal";
+import { Input } from "@/components/ui/input";
+import { LobbyRoomView, LobbyDetails } from "@/components/lobby-room-view";
+import { BattleRoyaleStandings } from "@/components/battle-royale-standings";
+import { ResultSubmissionModal } from "@/components/result-submission-modal";
+import { DisputeModal } from "@/components/dispute-modal";
+import { DisputeResolutionModal } from "@/components/dispute-resolution-modal";
 
 interface TournamentDetailProps {
   params: Promise<{ slug: string }>;
@@ -27,17 +33,56 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
   const { slug } = use(params);
 
   const [tournament, setTournament] = useState<any>(null);
-  const [standings, setStandings] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"bracket" | "standings" | "participants" | "rules">("bracket");
+  const [activeTab, setActiveTab] = useState<"lobbies" | "standings" | "squads" | "rules">("lobbies");
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Match report modal state
-  const [selectedMatch, setSelectedMatch] = useState<BracketMatch | null>(null);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  // New lobby modal/form state
+  const [showAddLobby, setShowAddLobby] = useState(false);
+  const [lobbyTitle, setLobbyTitle] = useState("");
+  const [lobbyMap, setLobbyMap] = useState<"Erangel" | "Miramar" | "Sanhok" | "Vikendi">("Erangel");
+  const [lobbyScheduled, setLobbyScheduled] = useState("");
+  const [lobbyReveal, setLobbyReveal] = useState("");
+  const [creatingLobby, setCreatingLobby] = useState(false);
+
+  // Modals state
+  const [submissionModal, setSubmissionModal] = useState<{ isOpen: boolean; lobbyId: string; teamId: string }>({
+    isOpen: false,
+    lobbyId: "",
+    teamId: "",
+  });
+
+  const [disputeModal, setDisputeModal] = useState<{
+    isOpen: boolean;
+    lobbyId: string;
+    teamId: string;
+    resultId?: string;
+  }>({
+    isOpen: false,
+    lobbyId: "",
+    teamId: "",
+  });
+
+  const [resolutionModal, setResolutionModal] = useState<{
+    isOpen: boolean;
+    disputeId: string;
+    teamTag: string;
+    teamName: string;
+    reason: string;
+    description: string;
+    evidenceUrl?: string | null;
+  }>({
+    isOpen: false,
+    disputeId: "",
+    teamTag: "",
+    teamName: "",
+    reason: "",
+    description: "",
+  });
 
   const fetchData = async () => {
     try {
@@ -49,17 +94,14 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
       if (tourneyRes.ok) {
         const data = await tourneyRes.json();
         setTournament(data.tournament);
-
-        // Fetch standings
-        fetch(`/api/tournaments/${slug}/standings`)
-          .then((r) => r.json())
-          .then((s) => setStandings(s.standings || []))
-          .catch(() => {});
       }
 
       if (authRes.ok) {
         const uData = await authRes.json();
         setCurrentUser(uData.user || null);
+        if (uData.user?.teamsLed && uData.user.teamsLed.length > 0) {
+          setSelectedTeamId(uData.user.teamsLed[0].id);
+        }
       }
     } catch {
       // Ignore
@@ -75,8 +117,8 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-24 text-center">
-        <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
-        <span className="text-xs text-slate-400 font-mono">Loading tournament data...</span>
+        <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3" />
+        <span className="text-xs text-slate-400 font-mono">Loading battle-royale operations...</span>
       </div>
     );
   }
@@ -84,12 +126,10 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
   if (!tournament) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-24 text-center">
-        <Trophy className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-        <h2 className="text-xl font-bold text-white mb-2">Tournament Not Found</h2>
+        <Trophy className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+        <h2 className="text-lg font-bold text-white mb-2">Tournament Not Found</h2>
         <Link href="/tournaments">
-          <Button variant="primary" size="sm">
-            Browse All Tournaments
-          </Button>
+          <Button variant="primary" size="sm">Browse Tournaments</Button>
         </Link>
       </div>
     );
@@ -97,15 +137,17 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
 
   const isOrganizerOrAdmin =
     currentUser &&
-    (currentUser.id === tournament.organizerId || currentUser.role === "ADMIN");
+    (currentUser.id === tournament.organizerId ||
+      currentUser.role === "PLATFORM_ADMIN" ||
+      currentUser.role === "TOURNAMENT_ORGANIZER" ||
+      currentUser.role === "REFEREE");
 
   const isUserRegistered =
     currentUser &&
     tournament.registrations.some(
       (r: any) =>
-        r.userId === currentUser.id ||
-        (currentUser.teamsLed &&
-          currentUser.teamsLed.some((t: any) => t.id === r.teamId))
+        r.registeredById === currentUser.id ||
+        (currentUser.teamsLed && currentUser.teamsLed.some((t: any) => t.id === r.teamId))
     );
 
   const handleRegister = async () => {
@@ -114,48 +156,31 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
       return;
     }
 
+    if (!selectedTeamId) {
+      setActionError("Please create a squad first before registering.");
+      return;
+    }
+
     setActionError(null);
     setActionSuccess(null);
     setRegistering(true);
 
     try {
-      let teamId: string | undefined = undefined;
-      if (tournament.type === "TEAM" && currentUser.teamsLed && currentUser.teamsLed.length > 0) {
-        teamId = currentUser.teamsLed[0].id;
-      }
-
       const res = await fetch(`/api/tournaments/${slug}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId }),
+        body: JSON.stringify({ teamId: selectedTeamId }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Registration failed");
+      if (!res.ok) throw new Error(data.error || "Squad registration failed");
 
-      setActionSuccess("Successfully registered for this tournament!");
+      setActionSuccess("Your squad has been confirmed for this tournament!");
       fetchData();
     } catch (err: any) {
       setActionError(err.message);
     } finally {
       setRegistering(false);
-    }
-  };
-
-  const handleStartTournament = async () => {
-    setActionError(null);
-    setActionSuccess(null);
-    try {
-      const res = await fetch(`/api/tournaments/${slug}/start`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start tournament");
-
-      setActionSuccess("Tournament started and bracket generated!");
-      fetchData();
-    } catch (err: any) {
-      setActionError(err.message);
     }
   };
 
@@ -171,79 +196,133 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update status");
 
-      setActionSuccess(`Status transitioned to ${newStatus}`);
+      setActionSuccess(`Tournament status updated to ${newStatus}`);
       fetchData();
     } catch (err: any) {
       setActionError(err.message);
     }
   };
 
+  const handleAddLobby = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingLobby(true);
+    setActionError(null);
+
+    try {
+      const nextNum = (tournament.lobbies?.length || 0) + 1;
+      const res = await fetch("/api/lobbies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentId: tournament.id,
+          lobbyNumber: nextNum,
+          title: lobbyTitle || `Match ${nextNum} - ${lobbyMap}`,
+          mapName: lobbyMap,
+          scheduledTime: new Date(lobbyScheduled).toISOString(),
+          revealTime: new Date(lobbyReveal).toISOString(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create match lobby");
+
+      setShowAddLobby(false);
+      setLobbyTitle("");
+      setActionSuccess("Battle-Royale match lobby scheduled!");
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setCreatingLobby(false);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col pb-20">
+    <div className="flex-1 flex flex-col pb-16">
       {/* Tournament Banner & Hero */}
-      <div className="relative w-full bg-[#0a0d15] border-b border-white/[0.08]">
-        <div className="relative h-64 sm:h-80 w-full overflow-hidden">
+      <div className="relative w-full bg-[#0a0d14] border-b border-white/[0.08]">
+        <div className="relative h-48 sm:h-64 w-full overflow-hidden">
           <img
             src={
               tournament.bannerUrl ||
-              tournament.game.bannerUrl ||
               "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop"
             }
             alt={tournament.title}
-            className="w-full h-full object-cover opacity-30"
+            className="w-full h-full object-cover opacity-25"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0d15] via-[#0a0d15]/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0d14] via-[#0a0d14]/70 to-transparent" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-36 relative z-10 pb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 sm:-mt-28 relative z-10 pb-6">
           <Link
             href="/tournaments"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-6 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-4 transition-colors font-mono"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Tournaments
           </Link>
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-5">
             <div>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="bg-indigo-950/80 border border-indigo-500/30 text-indigo-400 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md">
-                  {tournament.game.title}
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className="bg-[#141b27] border border-white/10 text-slate-200 text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded">
+                  {tournament.game}
                 </span>
                 <Badge status={tournament.status} />
-                <span className="bg-slate-900 border border-white/10 text-slate-300 text-xs font-mono uppercase px-2.5 py-1 rounded-md">
-                  {tournament.type} Tournament
+                <span className="text-slate-400 text-xs font-mono">
+                  {tournament.teamSize}-Player Squads
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight font-mono mb-2">
+              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight font-mono mb-1.5">
                 {tournament.title}
               </h1>
 
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Organized by <strong className="text-slate-200">{tournament.organizer.username}</strong></span>
-                <span>•</span>
-                <span>Single Elimination Format</span>
+                <Shield className="w-3.5 h-3.5 text-amber-500" />
+                <span>Hosted by <strong className="text-slate-200">{tournament.organization.name}</strong></span>
               </div>
             </div>
 
-            {/* Quick Action Button */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            {/* Registration action */}
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full lg:w-auto">
               {isUserRegistered ? (
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wider">
-                  <CheckCircle className="w-4 h-4" /> Registered & Confirmed
+                <div className="flex items-center gap-1.5 px-3.5 py-2 rounded bg-emerald-950/50 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold uppercase">
+                  <CheckCircle className="w-3.5 h-3.5" /> Squad Registered & Confirmed
                 </div>
               ) : tournament.status === "REGISTRATION_OPEN" ? (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  isLoading={registering}
-                  onClick={handleRegister}
-                >
-                  Register Now
-                </Button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {currentUser?.teamsLed && currentUser.teamsLed.length > 0 ? (
+                    <>
+                      <select
+                        value={selectedTeamId}
+                        onChange={(e) => setSelectedTeamId(e.target.value)}
+                        className="bg-[#141a27] border border-white/10 rounded px-2.5 py-2 text-xs text-white"
+                      >
+                        {currentUser.teamsLed.map((t: any) => (
+                          <option key={t.id} value={t.id}>
+                            [{t.tag}] {t.name} ({t.players.length} players)
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="primary"
+                        size="md"
+                        isLoading={registering}
+                        onClick={handleRegister}
+                      >
+                        Register Squad
+                      </Button>
+                    </>
+                  ) : (
+                    <Link href="/teams/create">
+                      <Button variant="primary" size="md">
+                        Create Squad to Register
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               ) : (
-                <div className="px-4 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-slate-400 font-mono uppercase">
+                <div className="px-3 py-1.5 rounded bg-slate-900 border border-white/10 text-xs text-slate-400 font-mono uppercase">
                   Registration {tournament.status.replace(/_/g, " ")}
                 </div>
               )}
@@ -252,79 +331,78 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
         </div>
       </div>
 
-      {/* Info Ribbon */}
-      <div className="bg-[#0f1422] border-b border-white/[0.08] py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="flex items-center gap-3">
-            <Trophy className="w-5 h-5 text-amber-400" />
+      {/* Ribbon Stats */}
+      <div className="bg-[#0e131b] border-b border-white/[0.06] py-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono">
+          <div className="flex items-center gap-2.5">
+            <Trophy className="w-4 h-4 text-amber-400" />
             <div>
-              <div className="text-[10px] uppercase font-semibold text-slate-400">Prize Pool</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {tournament.prizePool > 0 ? `$${tournament.prizePool.toLocaleString()}` : "Glory / Points"}
+              <div className="text-[10px] uppercase text-slate-400">Prize Pool</div>
+              <div className="text-xs font-bold text-white">
+                {tournament.prizePool > 0 ? `₹${tournament.prizePool.toLocaleString()}` : "Glory & Points"}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Users className="w-5 h-5 text-indigo-400" />
+          <div className="flex items-center gap-2.5">
+            <Users className="w-4 h-4 text-amber-500" />
             <div>
-              <div className="text-[10px] uppercase font-semibold text-slate-400">Slots Filled</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {tournament.registrations.length} / {tournament.maxParticipants}
+              <div className="text-[10px] uppercase text-slate-400">Squad Slots</div>
+              <div className="text-xs font-bold text-white">
+                {tournament.registrations.length} / {tournament.teamCapacity} Squads
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-cyan-400" />
+          <div className="flex items-center gap-2.5">
+            <Calendar className="w-4 h-4 text-slate-400" />
             <div>
-              <div className="text-[10px] uppercase font-semibold text-slate-400">Start Date</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {new Date(tournament.startDate).toLocaleDateString()}
+              <div className="text-[10px] uppercase text-slate-400">Tournament Start</div>
+              <div className="text-xs font-bold text-white">
+                {new Date(tournament.tournamentStart).toLocaleDateString()}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 text-rose-400" />
+          <div className="flex items-center gap-2.5">
+            <Clock className="w-4 h-4 text-slate-400" />
             <div>
-              <div className="text-[10px] uppercase font-semibold text-slate-400">Deadline</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {new Date(tournament.registrationDeadline).toLocaleDateString()}
+              <div className="text-[10px] uppercase text-slate-400">Registration Ends</div>
+              <div className="text-xs font-bold text-white">
+                {new Date(tournament.registrationEnd).toLocaleDateString()}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Organizer / Admin Management Bar */}
+      {/* Organizer / Referee Management Ribbon */}
       {isOrganizerOrAdmin && (
-        <div className="bg-[#12192a] border-b border-indigo-500/30 px-4 sm:px-6 lg:px-8 py-3">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-indigo-300 font-bold uppercase font-mono">
-              <Settings className="w-4 h-4" /> Organizer Control Console
+        <div className="bg-[#121926] border-b border-amber-500/20 px-4 sm:px-6 lg:px-8 py-2.5">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-2 text-amber-400 font-bold uppercase">
+              <Settings className="w-4 h-4" /> Organizer & Referee Console
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {(tournament.status === "REGISTRATION_OPEN" || tournament.status === "REGISTRATION_CLOSED") && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={handleStartTournament}
-                  className="gap-1.5"
-                >
-                  <Play className="w-3.5 h-3.5" /> Start & Generate Bracket
-                </Button>
-              )}
+              <Button
+                size="xs"
+                variant="amber-subtle"
+                onClick={() => setShowAddLobby(!showAddLobby)}
+                className="gap-1"
+              >
+                <Plus className="w-3 h-3" /> Schedule Match Lobby
+              </Button>
 
               <select
                 value={tournament.status}
                 onChange={(e) => handleStatusChange(e.target.value)}
-                className="bg-slate-900 border border-white/20 rounded-md px-2 py-1 text-xs text-white focus:outline-none"
+                className="bg-slate-900 border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none"
               >
+                <option value="DRAFT">Status: Draft</option>
                 <option value="REGISTRATION_OPEN">Status: Registration Open</option>
                 <option value="REGISTRATION_CLOSED">Status: Registration Closed</option>
-                <option value="ONGOING">Status: Ongoing</option>
+                <option value="LIVE">Status: Live / Matches In Progress</option>
                 <option value="COMPLETED">Status: Completed</option>
                 <option value="CANCELLED">Status: Cancelled</option>
               </select>
@@ -333,165 +411,286 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
         </div>
       )}
 
-      {/* Action Messages */}
+      {/* Add Lobby Form */}
+      {showAddLobby && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 w-full">
+          <form onSubmit={handleAddLobby} className="p-4 surface-panel border border-amber-500/30 rounded-lg space-y-3">
+            <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Schedule Shared Battle-Royale Lobby
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <Input
+                label="Lobby Title (Optional)"
+                placeholder="e.g. Match 1 - Erangel"
+                value={lobbyTitle}
+                onChange={(e) => setLobbyTitle(e.target.value)}
+              />
+              <div>
+                <label className="block text-xs font-mono font-semibold uppercase text-slate-300 mb-1">
+                  Map
+                </label>
+                <select
+                  value={lobbyMap}
+                  onChange={(e: any) => setLobbyMap(e.target.value)}
+                  className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-white"
+                >
+                  <option value="Erangel">Erangel</option>
+                  <option value="Miramar">Miramar</option>
+                  <option value="Sanhok">Sanhok</option>
+                  <option value="Vikendi">Vikendi</option>
+                </select>
+              </div>
+              <Input
+                label="Match Start (UTC)"
+                type="datetime-local"
+                required
+                value={lobbyScheduled}
+                onChange={(e) => setLobbyScheduled(e.target.value)}
+              />
+              <Input
+                label="Room Reveal Time (UTC)"
+                type="datetime-local"
+                required
+                value={lobbyReveal}
+                onChange={(e) => setLobbyReveal(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="xs" onClick={() => setShowAddLobby(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="xs" isLoading={creatingLobby}>
+                Schedule Lobby
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Feedback Messages */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 w-full">
         {actionSuccess && (
-          <div className="flex items-center gap-2 p-3 text-xs bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 rounded-lg mb-4">
+          <div className="flex items-center gap-2 p-3 text-xs bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 rounded mb-3">
             <CheckCircle className="w-4 h-4 flex-shrink-0" />
             <span>{actionSuccess}</span>
           </div>
         )}
         {actionError && (
-          <div className="flex items-center gap-2 p-3 text-xs bg-rose-950/40 border border-rose-500/30 text-rose-300 rounded-lg mb-4">
+          <div className="flex items-center gap-2 p-3 text-xs bg-red-950/40 border border-red-500/30 text-red-300 rounded mb-3">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{actionError}</span>
           </div>
         )}
       </div>
 
-      {/* Main Tabbed Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-white/10 mb-8 overflow-x-auto pb-1">
-          {(["bracket", "standings", "participants", "rules"] as const).map((tab) => (
+      {/* Main Tabs */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 w-full flex-1">
+        <div className="flex items-center gap-1 border-b border-white/10 mb-6 overflow-x-auto pb-1">
+          {(["lobbies", "standings", "squads", "rules"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors capitalize ${
+              className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider rounded transition-colors ${
                 activeTab === tab
-                  ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30"
+                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              {tab}
+              {tab === "lobbies" ? `Match Lobbies (${tournament.lobbies?.length || 0})` : tab}
             </button>
           ))}
         </div>
 
-        {/* Tab 1: Bracket */}
-        {activeTab === "bracket" && (
-          <div className="bg-[#0f1420] border border-white/[0.08] rounded-2xl p-6">
-            <div className="mb-4">
-              <h3 className="text-base font-bold text-white">Single Elimination Bracket</h3>
-              <p className="text-xs text-slate-400">
-                Live match tree. Matches advance automatically upon official score reporting.
-              </p>
-            </div>
-
-            <BracketView
-              matches={tournament.matches || []}
-              canReportResult={Boolean(isOrganizerOrAdmin || currentUser)}
-              onReportMatch={(m) => {
-                setSelectedMatch(m);
-                setIsReportModalOpen(true);
-              }}
-            />
-          </div>
-        )}
-
-        {/* Tab 2: Standings */}
-        {activeTab === "standings" && (
-          <div className="bg-[#0f1420] border border-white/[0.08] rounded-2xl p-6">
-            <h3 className="text-base font-bold text-white mb-1">Official Tournament Standings</h3>
-            <p className="text-xs text-slate-400 mb-6">
-              Derived from finalized and verified match results.
-            </p>
-
-            {standings.length === 0 ? (
-              <div className="text-center py-12 text-xs text-slate-500">
-                Standings will be updated as matches conclude.
-              </div>
+        {/* Tab 1: Lobbies */}
+        {activeTab === "lobbies" && (
+          <div className="space-y-6">
+            {tournament.lobbies && tournament.lobbies.length > 0 ? (
+              tournament.lobbies.map((lobby: LobbyDetails) => (
+                <LobbyRoomView
+                  key={lobby.id}
+                  lobby={lobby}
+                  currentUserId={currentUser?.id}
+                  currentUserRole={currentUser?.role}
+                  isOrganizerOrReferee={isOrganizerOrAdmin}
+                  onRefresh={fetchData}
+                  onSubmitResult={(lobbyId, teamId) =>
+                    setSubmissionModal({ isOpen: true, lobbyId, teamId })
+                  }
+                  onVerifyResult={(resultId, placement, kills) => {
+                    // Open referee verification
+                    const notes = prompt("Enter verification note (or press OK to verify):", "Verified via match end screen");
+                    if (notes !== null) {
+                      fetch(`/api/lobbies/results/${resultId}/verify`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ placement, kills, status: "VERIFIED" }),
+                      }).then(() => fetchData());
+                    }
+                  }}
+                  onRaiseDispute={(lobbyId, teamId, resultId) =>
+                    setDisputeModal({ isOpen: true, lobbyId, teamId, resultId })
+                  }
+                />
+              ))
             ) : (
-              <div className="divide-y divide-white/5 rounded-xl border border-white/5 overflow-hidden">
-                {standings.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between p-4 bg-[#121824] hover:bg-[#161e2d] transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-xs ${
-                          s.rank === 1
-                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                            : s.rank === 2
-                            ? "bg-slate-300/20 text-slate-300 border border-slate-300/40"
-                            : "bg-indigo-900/40 text-indigo-300"
-                        }`}
-                      >
-                        #{s.rank}
-                      </span>
-                      <span className="font-semibold text-white text-sm">{s.name}</span>
-                    </div>
-                    <Badge variant={s.rank === 1 ? "warning" : "default"}>
-                      {s.status}
-                    </Badge>
-                  </div>
-                ))}
+              <div className="surface-panel p-10 text-center rounded-lg">
+                <Crosshair className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                <h4 className="text-sm font-bold text-white mb-1">No Match Lobbies Scheduled</h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  The tournament organizer will post match lobbies, scheduled start times, and room credentials shortly.
+                </p>
               </div>
             )}
           </div>
         )}
 
-        {/* Tab 3: Participants */}
-        {activeTab === "participants" && (
-          <div className="bg-[#0f1420] border border-white/[0.08] rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-6">
+        {/* Tab 2: Standings */}
+        {activeTab === "standings" && (
+          <BattleRoyaleStandings standings={tournament.standings || []} />
+        )}
+
+        {/* Tab 3: Squads */}
+        {activeTab === "squads" && (
+          <div className="surface-panel p-5 rounded-lg border border-white/[0.08]">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-base font-bold text-white">Registered Participants</h3>
+                <h3 className="text-sm font-bold text-white font-mono">
+                  Registered Battle-Royale Squads ({tournament.registrations.length})
+                </h3>
                 <p className="text-xs text-slate-400">
-                  {tournament.registrations.length} competitors locked in.
+                  Confirmed team rosters verified for this tournament.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {tournament.registrations.map((r: any, idx: number) => {
-                const name = r.team ? `[${r.team.tag}] ${r.team.name}` : r.user?.username || "Player";
-                return (
-                  <div
-                    key={r.id}
-                    className="p-4 rounded-xl bg-[#121824] border border-white/5 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono text-slate-500 font-bold">
-                        #{idx + 1}
-                      </span>
-                      <div>
-                        <div className="font-semibold text-slate-200 text-xs sm:text-sm">{name}</div>
-                        <div className="text-[10px] text-slate-500">
-                          Joined {new Date(r.registeredAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant="success">Confirmed</Badge>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {tournament.registrations.map((reg: any, idx: number) => (
+                <div key={reg.id} className="p-3.5 bg-[#121824] border border-white/5 rounded">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-xs font-bold text-amber-400">
+                      #{idx + 1}
+                    </span>
+                    <Badge variant="gold">Confirmed</Badge>
                   </div>
-                );
-              })}
+                  <h4 className="font-bold text-white text-sm">
+                    [{reg.team.tag}] {reg.team.name}
+                  </h4>
+                  <div className="text-[11px] text-slate-400 mb-2">
+                    Captain: <span className="text-slate-300 font-semibold">{reg.team.captain.username}</span>
+                  </div>
+
+                  <div className="space-y-1 pt-2 border-t border-white/[0.04]">
+                    <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">
+                      Roster Lineup ({reg.team.players.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {reg.team.players.map((p: any) => (
+                        <span
+                          key={p.id}
+                          className="bg-black/50 border border-white/5 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-300"
+                        >
+                          {p.playerName} ({p.inGameId})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Tab 4: Rules */}
+        {/* Tab 4: Rules & Scoring Matrix */}
         {activeTab === "rules" && (
-          <div className="bg-[#0f1420] border border-white/[0.08] rounded-2xl p-6">
-            <h3 className="text-base font-bold text-white mb-2">Rules & Code of Conduct</h3>
-            <div className="prose prose-invert text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-              {tournament.rulesText}
+          <div className="surface-panel p-5 rounded-lg border border-white/[0.08] space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-white font-mono mb-1">
+                Official Battle-Royale Scoring Matrix
+              </h3>
+              <p className="text-xs text-slate-400 mb-3">
+                Placement finishes are rewarded with descending placement points, combined with 1 point per confirmed frag.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-xs">
+                <div className="p-2 bg-[#121822] border border-white/5 rounded text-center">
+                  <span className="text-amber-400 font-bold block">1st Place</span>
+                  <span className="text-slate-300">15 Pts (WWCD)</span>
+                </div>
+                <div className="p-2 bg-[#121822] border border-white/5 rounded text-center">
+                  <span className="text-slate-300 font-bold block">2nd Place</span>
+                  <span className="text-slate-300">12 Pts</span>
+                </div>
+                <div className="p-2 bg-[#121822] border border-white/5 rounded text-center">
+                  <span className="text-slate-300 font-bold block">3rd Place</span>
+                  <span className="text-slate-300">10 Pts</span>
+                </div>
+                <div className="p-2 bg-[#121822] border border-white/5 rounded text-center">
+                  <span className="text-slate-400 font-bold block">4th Place</span>
+                  <span className="text-slate-300">8 Pts</span>
+                </div>
+                <div className="p-2 bg-[#121822] border border-white/5 rounded text-center">
+                  <span className="text-slate-400 font-bold block">5th Place</span>
+                  <span className="text-slate-300">6 Pts</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/[0.06]">
+              <h3 className="text-sm font-bold text-white font-mono mb-1">
+                Rules & Code of Conduct
+              </h3>
+              <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                {tournament.rules}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Match Reporting Modal */}
-      <MatchReportModal
-        match={selectedMatch}
-        isOpen={isReportModalOpen}
-        onClose={() => {
-          setIsReportModalOpen(false);
-          setSelectedMatch(null);
-        }}
+      {/* Modals */}
+      <ResultSubmissionModal
+        isOpen={submissionModal.isOpen}
+        lobbyId={submissionModal.lobbyId}
+        teamId={submissionModal.teamId}
+        onClose={() => setSubmissionModal({ isOpen: false, lobbyId: "", teamId: "" })}
         onSuccess={() => {
-          setActionSuccess("Score reported! Bracket updated.");
+          setActionSuccess("Result submitted for referee verification!");
+          fetchData();
+        }}
+      />
+
+      <DisputeModal
+        isOpen={disputeModal.isOpen}
+        tournamentId={tournament.id}
+        lobbyId={disputeModal.lobbyId}
+        teamId={disputeModal.teamId}
+        resultId={disputeModal.resultId}
+        onClose={() => setDisputeModal({ isOpen: false, lobbyId: "", teamId: "" })}
+        onSuccess={() => {
+          setActionSuccess("Dispute filed! Referees have been notified.");
+          fetchData();
+        }}
+      />
+
+      <DisputeResolutionModal
+        isOpen={resolutionModal.isOpen}
+        disputeId={resolutionModal.disputeId}
+        teamTag={resolutionModal.teamTag}
+        teamName={resolutionModal.teamName}
+        reason={resolutionModal.reason}
+        description={resolutionModal.description}
+        evidenceUrl={resolutionModal.evidenceUrl}
+        onClose={() =>
+          setResolutionModal({
+            isOpen: false,
+            disputeId: "",
+            teamTag: "",
+            teamName: "",
+            reason: "",
+            description: "",
+          })
+        }
+        onSuccess={() => {
+          setActionSuccess("Official ruling recorded!");
           fetchData();
         }}
       />

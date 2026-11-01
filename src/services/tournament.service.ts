@@ -1,11 +1,32 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { createTournamentSchema } from "@/lib/validations";
-import { BracketService, ParticipantInfo } from "./bracket.service";
+import { createTournamentSchema, updateTournamentStatusSchema } from "@/lib/validations";
+import { StandingsService } from "./standings.service";
+import { DEFAULT_BGMI_SCORING } from "./scoring.service";
 
 export class TournamentService {
-  static async create(organizerId: string, data: z.infer<typeof createTournamentSchema>) {
-    // Generate URL friendly slug
+  /**
+   * Create a new Battle-Royale tournament scoped to an Organization
+   */
+  static async create(
+    organizerId: string,
+    data: z.infer<typeof createTournamentSchema>
+  ) {
+    // Verify membership in organization
+    const membership = await prisma.orgMembership.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: data.organizationId,
+          userId: organizerId,
+        },
+      },
+      include: { organization: true },
+    });
+
+    if (!membership || membership.organization.status === "SUSPENDED") {
+      throw new Error("Forbidden: You must be an active member of this organization");
+    }
+
     const baseSlug = data.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -13,51 +34,68 @@ export class TournamentService {
     const randomSuffix = Math.random().toString(36).substring(2, 6);
     const slug = `${baseSlug}-${randomSuffix}`;
 
+    const scoringConfigStr = data.scoringConfig || JSON.stringify(DEFAULT_BGMI_SCORING);
+
     const tournament = await prisma.tournament.create({
       data: {
+        organizationId: data.organizationId,
+        organizerId,
         title: data.title,
         slug,
         description: data.description,
-        gameId: data.gameId,
-        organizerId,
-        type: data.type,
-        format: data.format,
-        maxParticipants: data.maxParticipants,
-        registrationDeadline: new Date(data.registrationDeadline),
-        startDate: new Date(data.startDate),
-        rulesText: data.rulesText,
+        game: data.game || "BGMI",
+        rules: data.rules,
+        teamCapacity: data.teamCapacity,
+        teamSize: data.teamSize || 4,
+        scoringConfig: scoringConfigStr,
+        registrationStart: new Date(data.registrationStart),
+        registrationEnd: new Date(data.registrationEnd),
+        tournamentStart: new Date(data.tournamentStart),
+        tournamentEnd: data.tournamentEnd ? new Date(data.tournamentEnd) : null,
         prizePool: data.prizePool,
         bannerUrl: data.bannerUrl || null,
-        status: "REGISTRATION_OPEN",
+        status: "DRAFT",
       },
       include: {
-        game: true,
-        organizer: {
-          select: { id: true, name: true, username: true },
-        },
+        organization: true,
+        organizer: { select: { id: true, name: true, username: true } },
+      },
+    });
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        actorId: organizerId,
+        organizationId: data.organizationId,
+        action: "TOURNAMENT_CREATED",
+        entityType: "TOURNAMENT",
+        entityId: tournament.id,
+        metadata: JSON.stringify({ title: tournament.title, capacity: tournament.teamCapacity }),
       },
     });
 
     return tournament;
   }
 
+  /**
+   * List tournaments with multi-tenant filtering, search, and pagination
+   */
   static async list({
     search,
-    gameSlug,
+    game,
     status,
-    type,
+    organizationId,
     page = 1,
     limit = 12,
   }: {
     search?: string;
-    gameSlug?: string;
+    game?: string;
     status?: string;
-    type?: string;
+    organizationId?: string;
     page?: number;
     limit?: number;
   }) {
     const skip = (page - 1) * limit;
-
     const where: any = {};
 
     if (search) {
@@ -66,18 +104,9 @@ export class TournamentService {
         { description: { contains: search } },
       ];
     }
-
-    if (gameSlug) {
-      where.game = { slug: gameSlug };
-    }
-
-    if (status) {
-      where.status = status;
-    }
-
-    if (type) {
-      where.type = type;
-    }
+    if (game) where.game = game;
+    if (status) where.status = status;
+    if (organizationId) where.organizationId = organizationId;
 
     const [total, tournaments] = await Promise.all([
       prisma.tournament.count({ where }),
@@ -85,14 +114,12 @@ export class TournamentService {
         where,
         skip,
         take: limit,
-        orderBy: [{ isFeatured: "desc" }, { startDate: "asc" }],
+        orderBy: [{ isFeatured: "desc" }, { tournamentStart: "asc" }],
         include: {
-          game: true,
-          organizer: {
-            select: { id: true, name: true, username: true },
-          },
+          organization: { select: { id: true, name: true, slug: true, logoUrl: true } },
+          organizer: { select: { username: true } },
           _count: {
-            select: { registrations: true },
+            select: { registrations: true, lobbies: true },
           },
         },
       }),
@@ -109,31 +136,66 @@ export class TournamentService {
     };
   }
 
+  /**
+   * Get single tournament by slug with lobbies, registrations, and live standings
+   */
   static async getBySlug(slug: string) {
     const tournament = await prisma.tournament.findUnique({
       where: { slug },
       include: {
-        game: true,
-        organizer: {
-          select: { id: true, name: true, username: true, avatarUrl: true },
-        },
+        organization: { select: { id: true, name: true, slug: true, logoUrl: true, status: true } },
+        organizer: { select: { id: true, name: true, username: true } },
         registrations: {
           include: {
-            user: { select: { id: true, name: true, username: true, avatarUrl: true } },
-            team: { select: { id: true, name: true, tag: true, logoUrl: true } },
+            team: {
+              include: {
+                players: true,
+                captain: { select: { id: true, name: true, username: true } },
+              },
+            },
           },
           orderBy: { registeredAt: "asc" },
         },
-        matches: {
-          orderBy: [{ round: "asc" }, { matchNumber: "asc" }],
+        lobbies: {
+          include: {
+            teams: {
+              include: {
+                team: { select: { id: true, name: true, tag: true } },
+              },
+              orderBy: { slotNumber: "asc" },
+            },
+            results: {
+              include: {
+                team: { select: { id: true, name: true, tag: true } },
+              },
+              orderBy: { placement: "asc" },
+            },
+            _count: { select: { disputes: true } },
+          },
+          orderBy: { lobbyNumber: "asc" },
         },
       },
     });
 
-    return tournament;
+    if (!tournament) return null;
+
+    // Compute live standings
+    const standings = await StandingsService.getTournamentStandings(tournament.id);
+
+    return {
+      ...tournament,
+      standings,
+    };
   }
 
-  static async register(userId: string, tournamentId: string, teamId?: string) {
+  /**
+   * Register a 4-player squad for a tournament
+   */
+  static async registerSquad(
+    userId: string,
+    tournamentId: string,
+    teamId: string
+  ) {
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
@@ -141,170 +203,124 @@ export class TournamentService {
       },
     });
 
-    if (!tournament) {
-      throw new Error("Tournament not found");
+    if (!tournament) throw new Error("Tournament not found");
+
+    if (tournament.status !== "REGISTRATION_OPEN") {
+      throw new Error(`Registration is not currently open (Status: ${tournament.status})`);
     }
 
-    if (tournament.status !== "REGISTRATION_OPEN" && tournament.status !== "UPCOMING") {
-      throw new Error(`Registration is closed for this tournament (Status: ${tournament.status})`);
+    const now = new Date();
+    if (now < new Date(tournament.registrationStart)) {
+      throw new Error("Registration has not yet started");
+    }
+    if (now > new Date(tournament.registrationEnd)) {
+      throw new Error("Registration deadline has passed");
     }
 
-    if (new Date() > new Date(tournament.registrationDeadline)) {
-      throw new Error("The registration deadline has passed");
+    if (tournament.registrations.length >= tournament.teamCapacity) {
+      throw new Error(`Tournament capacity of ${tournament.teamCapacity} teams has been reached`);
     }
 
-    if (tournament.registrations.length >= tournament.maxParticipants) {
-      throw new Error("Tournament has reached maximum capacity");
+    // Verify user is team captain
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { players: true },
+    });
+
+    if (!team) throw new Error("Team not found");
+    if (team.captainId !== userId) {
+      throw new Error("Only the team captain can register the team for a tournament");
     }
 
-    if (tournament.type === "TEAM") {
-      if (!teamId) {
-        throw new Error("A team must be selected to register for team tournaments");
-      }
+    // Check squad roster size requirement (default 4)
+    if (team.players.length < tournament.teamSize) {
+      throw new Error(
+        `Your roster has ${team.players.length} player(s). A full squad of at least ${tournament.teamSize} players is required to enter.`
+      );
+    }
 
-      // Check if user is captain or member of the team
-      const membership = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: { teamId, userId },
-        },
-      });
-
-      if (!membership || membership.role !== "CAPTAIN") {
-        throw new Error("Only the team captain can register the team for a tournament");
-      }
-
-      // Check if team already registered
-      const existing = await prisma.tournamentRegistration.findUnique({
-        where: {
-          tournamentId_teamId: { tournamentId, teamId },
-        },
-      });
-
-      if (existing) {
-        throw new Error("Your team is already registered for this tournament");
-      }
-
-      const registration = await prisma.tournamentRegistration.create({
-        data: {
+    // Check duplicate registration
+    const existing = await prisma.tournamentRegistration.findUnique({
+      where: {
+        tournamentId_teamId: {
           tournamentId,
           teamId,
-          status: "CONFIRMED",
-        },
-        include: {
-          team: true,
-        },
-      });
-
-      return registration;
-    } else {
-      // Solo tournament
-      const existing = await prisma.tournamentRegistration.findUnique({
-        where: {
-          tournamentId_userId: { tournamentId, userId },
-        },
-      });
-
-      if (existing) {
-        throw new Error("You are already registered for this tournament");
-      }
-
-      const registration = await prisma.tournamentRegistration.create({
-        data: {
-          tournamentId,
-          userId,
-          status: "CONFIRMED",
-        },
-        include: {
-          user: true,
-        },
-      });
-
-      return registration;
-    }
-  }
-
-  static async startTournament(userId: string, userRole: string, tournamentId: string) {
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      include: {
-        registrations: {
-          include: {
-            user: true,
-            team: true,
-          },
         },
       },
     });
 
-    if (!tournament) throw new Error("Tournament not found");
-
-    if (userRole !== "ADMIN" && tournament.organizerId !== userId) {
-      throw new Error("Unauthorized: Only tournament organizer or admin can start the event");
+    if (existing) {
+      throw new Error("Your team is already registered for this tournament");
     }
 
-    if (tournament.registrations.length < 2) {
-      throw new Error("Cannot start tournament with fewer than 2 registered participants");
-    }
-
-    // Format participants
-    const participants: ParticipantInfo[] = tournament.registrations.map((reg) => {
-      if (tournament.type === "TEAM" && reg.team) {
-        return { id: reg.team.id, name: `[${reg.team.tag}] ${reg.team.name}` };
-      }
-      return { id: reg.user?.id || reg.id, name: reg.user?.username || "Player" };
+    const registration = await prisma.tournamentRegistration.create({
+      data: {
+        tournamentId,
+        teamId,
+        registeredById: userId,
+        status: "CONFIRMED",
+      },
+      include: {
+        team: true,
+      },
     });
 
-    // Update status to ONGOING
-    await prisma.tournament.update({
-      where: { id: tournamentId },
-      data: { status: "ONGOING" },
+    // Notify captain
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: "Tournament Registration Confirmed",
+        message: `Team [${team.tag}] ${team.name} successfully registered for ${tournament.title}.`,
+        type: "REGISTRATION",
+        linkUrl: `/tournaments/${tournament.slug}`,
+      },
     });
 
-    // Generate bracket matches
-    const matches = await BracketService.generateSingleElimination(tournamentId, participants);
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        actorId: userId,
+        organizationId: tournament.organizationId,
+        action: "TEAM_REGISTERED",
+        entityType: "TOURNAMENT",
+        entityId: tournament.id,
+        metadata: JSON.stringify({ teamId, teamTag: team.tag }),
+      },
+    });
 
-    // Notify registered participants
-    for (const reg of tournament.registrations) {
-      const recipientId = reg.userId || (reg.team ? reg.team.captainId : null);
-      if (recipientId) {
-        await prisma.notification.create({
-          data: {
-            userId: recipientId,
-            title: "Tournament Bracket Live!",
-            message: `${tournament.title} has started! Check your bracket and match schedule.`,
-            type: "TOURNAMENT",
-            linkUrl: `/tournaments/${tournament.slug}`,
-          },
-        });
-      }
-    }
-
-    return matches;
+    return registration;
   }
 
+  /**
+   * Transition tournament status with state machine validation
+   */
   static async updateStatus(
     userId: string,
-    userRole: string,
     tournamentId: string,
     newStatus: string
   ) {
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
+      include: {
+        organization: { include: { members: { where: { userId } } } },
+      },
     });
 
     if (!tournament) throw new Error("Tournament not found");
 
-    if (userRole !== "ADMIN" && tournament.organizerId !== userId) {
-      throw new Error("Unauthorized to modify tournament status");
+    const isOrgMember =
+      tournament.organizerId === userId ||
+      tournament.organization.members.some((m) => m.role === "TOURNAMENT_ORGANIZER");
+
+    if (!isOrgMember) {
+      throw new Error("Unauthorized: Only tournament organizers can modify lifecycle status");
     }
 
-    // Validate lifecycle transitions
     const validTransitions: { [key: string]: string[] } = {
-      DRAFT: ["UPCOMING", "REGISTRATION_OPEN", "CANCELLED"],
-      UPCOMING: ["REGISTRATION_OPEN", "CANCELLED"],
-      REGISTRATION_OPEN: ["REGISTRATION_CLOSED", "ONGOING", "CANCELLED"],
-      REGISTRATION_CLOSED: ["ONGOING", "REGISTRATION_OPEN", "CANCELLED"],
-      ONGOING: ["COMPLETED", "CANCELLED"],
+      DRAFT: ["REGISTRATION_OPEN", "CANCELLED"],
+      REGISTRATION_OPEN: ["REGISTRATION_CLOSED", "CANCELLED"],
+      REGISTRATION_CLOSED: ["LIVE", "REGISTRATION_OPEN", "CANCELLED"],
+      LIVE: ["COMPLETED", "CANCELLED"],
       COMPLETED: [],
       CANCELLED: [],
     };
@@ -318,81 +334,18 @@ export class TournamentService {
       data: { status: newStatus },
     });
 
-    return updated;
-  }
-
-  static async getStandings(tournamentId: string) {
-    const matches = await prisma.match.findMany({
-      where: { tournamentId },
-      orderBy: [{ round: "desc" }, { matchNumber: "asc" }],
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        actorId: userId,
+        organizationId: tournament.organizationId,
+        action: "TOURNAMENT_STATUS_CHANGED",
+        entityType: "TOURNAMENT",
+        entityId: tournament.id,
+        metadata: JSON.stringify({ from: tournament.status, to: newStatus }),
+      },
     });
 
-    if (matches.length === 0) {
-      return [];
-    }
-
-    const maxRound = Math.max(...matches.map((m) => m.round));
-    const finalMatch = matches.find((m) => m.round === maxRound);
-
-    const standings: Array<{ rank: number; name: string; id: string; status: string }> = [];
-
-    if (finalMatch && finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
-      // 1st place: Champion
-      const champName =
-        finalMatch.winnerId === finalMatch.participant1Id
-          ? finalMatch.participant1Name
-          : finalMatch.participant2Name;
-      standings.push({
-        rank: 1,
-        id: finalMatch.winnerId,
-        name: champName || "Champion",
-        status: "Champion",
-      });
-
-      // 2nd place: Runner-up
-      const runnerUpId =
-        finalMatch.winnerId === finalMatch.participant1Id
-          ? finalMatch.participant2Id
-          : finalMatch.participant1Id;
-      const runnerUpName =
-        finalMatch.winnerId === finalMatch.participant1Id
-          ? finalMatch.participant2Name
-          : finalMatch.participant1Name;
-      if (runnerUpId) {
-        standings.push({
-          rank: 2,
-          id: runnerUpId,
-          name: runnerUpName || "Runner-up",
-          status: "Finalist",
-        });
-      }
-
-      // 3rd & 4th place: Semi-finalists
-      if (maxRound > 1) {
-        const semiMatches = matches.filter((m) => m.round === maxRound - 1);
-        for (const semi of semiMatches) {
-          if (semi.status === "COMPLETED" && semi.winnerId) {
-            const loserId =
-              semi.winnerId === semi.participant1Id
-                ? semi.participant2Id
-                : semi.participant1Id;
-            const loserName =
-              semi.winnerId === semi.participant1Id
-                ? semi.participant2Name
-                : semi.participant1Name;
-            if (loserId && loserId !== runnerUpId && loserId !== finalMatch.winnerId) {
-              standings.push({
-                rank: 3,
-                id: loserId,
-                name: loserName || "Semifinalist",
-                status: "3rd-4th Place",
-              });
-            }
-          }
-        }
-      }
-    }
-
-    return standings;
+    return updated;
   }
 }

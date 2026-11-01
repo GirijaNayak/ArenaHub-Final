@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
-import { hashPassword, verifyPassword, signSessionToken, SessionPayload } from "@/lib/auth";
+import { hashPassword, verifyPassword, signSessionToken, SessionPayload, AppRole } from "@/lib/auth";
 import { z } from "zod";
-import { registerSchema, loginSchema, updateProfileSchema } from "@/lib/validations";
+import { registerSchema, loginSchema } from "@/lib/validations";
 
 export class AuthService {
   static async register(data: z.infer<typeof registerSchema>) {
@@ -28,6 +28,8 @@ export class AuthService {
         email: data.email.toLowerCase(),
         passwordHash,
         role: data.role || "PLAYER",
+        inGameId: data.inGameId || null,
+        inGameName: data.inGameName || null,
       },
     });
 
@@ -36,17 +38,17 @@ export class AuthService {
       email: user.email,
       username: user.username,
       name: user.name,
-      role: user.role as "PLAYER" | "ORGANIZER" | "ADMIN",
+      role: user.role as AppRole,
     };
 
     const token = await signSessionToken(sessionPayload);
 
-    // Create initial welcome notification
+    // Initial notification
     await prisma.notification.create({
       data: {
         userId: user.id,
         title: "Welcome to ArenaHub!",
-        message: "Your competitive journey starts here. Explore tournaments, join teams, and compete.",
+        message: "Your battle-royale esports operations platform is ready. Discover tournaments, register squads, and track room credentials.",
         type: "SYSTEM",
         linkUrl: "/tournaments",
       },
@@ -58,6 +60,12 @@ export class AuthService {
   static async login(data: z.infer<typeof loginSchema>) {
     const user = await prisma.user.findUnique({
       where: { email: data.email.toLowerCase() },
+      include: {
+        orgMemberships: {
+          include: { organization: true },
+          take: 1,
+        },
+      },
     });
     if (!user) {
       throw new Error("Invalid email or password");
@@ -68,12 +76,15 @@ export class AuthService {
       throw new Error("Invalid email or password");
     }
 
+    const activeOrgId = user.orgMemberships[0]?.organizationId;
+
     const sessionPayload: SessionPayload = {
       userId: user.id,
       email: user.email,
       username: user.username,
       name: user.name,
-      role: user.role as "PLAYER" | "ORGANIZER" | "ADMIN",
+      role: user.role as AppRole,
+      activeOrgId,
     };
 
     const token = await signSessionToken(sessionPayload);
@@ -91,89 +102,47 @@ export class AuthService {
         role: true,
         avatarUrl: true,
         bio: true,
-        region: true,
-        preferredGame: true,
-        discordTag: true,
+        phone: true,
+        inGameId: true,
+        inGameName: true,
         createdAt: true,
+        orgMemberships: {
+          include: {
+            organization: {
+              select: { id: true, name: true, slug: true, status: true, logoUrl: true },
+            },
+          },
+        },
         teamsLed: {
-          select: { id: true, name: true, tag: true, logoUrl: true, game: true },
+          include: {
+            players: true,
+            _count: { select: { tournamentRegistrations: true } },
+          },
         },
-        teamMemberships: {
+        teamPlayerProfiles: {
           include: {
             team: {
-              include: { game: true },
+              include: {
+                captain: { select: { id: true, username: true } },
+              },
             },
           },
         },
-        registrations: {
+        registrationsCreated: {
           include: {
             tournament: {
-              include: { game: true },
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+                game: true,
+                status: true,
+                tournamentStart: true,
+                organization: { select: { name: true } },
+              },
             },
+            team: { select: { id: true, name: true, tag: true } },
           },
-          orderBy: { registeredAt: "desc" },
-        },
-      },
-    });
-
-    return user;
-  }
-
-  static async updateProfile(userId: string, data: z.infer<typeof updateProfileSchema>) {
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(data.name && { name: data.name }),
-        ...(data.bio !== undefined && { bio: data.bio }),
-        ...(data.region && { region: data.region }),
-        ...(data.preferredGame !== undefined && { preferredGame: data.preferredGame }),
-        ...(data.discordTag !== undefined && { discordTag: data.discordTag }),
-        ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl || null }),
-      },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        email: true,
-        role: true,
-        avatarUrl: true,
-        bio: true,
-        region: true,
-        preferredGame: true,
-        discordTag: true,
-      },
-    });
-
-    return updated;
-  }
-
-  static async getPublicPlayerProfile(username: string) {
-    const user = await prisma.user.findUnique({
-      where: { username: username.toLowerCase() },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        role: true,
-        avatarUrl: true,
-        bio: true,
-        region: true,
-        preferredGame: true,
-        createdAt: true,
-        teamMemberships: {
-          include: {
-            team: {
-              include: { game: true },
-            },
-          },
-        },
-        registrations: {
-          include: {
-            tournament: {
-              include: { game: true },
-            },
-          },
-          take: 10,
           orderBy: { registeredAt: "desc" },
         },
       },

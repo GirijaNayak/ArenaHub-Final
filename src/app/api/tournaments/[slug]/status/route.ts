@@ -36,7 +36,6 @@ export async function PATCH(
 
     const updated = await TournamentService.updateStatus(
       session.userId,
-      session.role,
       tournament.id,
       validated.data.status
     );

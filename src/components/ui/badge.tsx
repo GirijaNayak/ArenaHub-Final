@@ -4,7 +4,7 @@ import { twMerge } from "tailwind-merge";
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   status?: string;
-  variant?: "default" | "success" | "warning" | "danger" | "info" | "purple";
+  variant?: "default" | "success" | "warning" | "danger" | "info" | "gold" | "secondary";
 }
 
 export function Badge({ className, status, variant, children, ...props }: BadgeProps) {
@@ -12,22 +12,31 @@ export function Badge({ className, status, variant, children, ...props }: BadgeP
 
   if (status) {
     switch (status.toUpperCase()) {
+      case "LIVE":
+      case "ACTIVE":
+      case "RESOLVED":
       case "REGISTRATION_OPEN":
         resolvedVariant = "success";
         break;
-      case "ONGOING":
-        resolvedVariant = "purple";
-        break;
-      case "COMPLETED":
-        resolvedVariant = "info";
-        break;
-      case "UPCOMING":
+      case "ROOM_POSTED":
+      case "OPEN":
+      case "UNDER_REVIEW":
         resolvedVariant = "warning";
         break;
-      case "REGISTRATION_CLOSED":
+      case "SCHEDULED":
+      case "DRAFT":
+        resolvedVariant = "secondary";
+        break;
+      case "RESULTS_PENDING":
+      case "DISPUTED":
+      case "REJECTED":
       case "CANCELLED":
-      case "DISQUALIFIED":
+      case "SUSPENDED":
         resolvedVariant = "danger";
+        break;
+      case "COMPLETED":
+      case "CONFIRMED":
+        resolvedVariant = "gold";
         break;
       default:
         resolvedVariant = "default";
@@ -35,12 +44,13 @@ export function Badge({ className, status, variant, children, ...props }: BadgeP
   }
 
   const variants = {
-    default: "bg-slate-800 text-slate-300 border-slate-700",
-    success: "bg-emerald-950/60 text-emerald-400 border-emerald-500/30",
-    warning: "bg-amber-950/60 text-amber-400 border-amber-500/30",
-    danger: "bg-rose-950/60 text-rose-400 border-rose-500/30",
-    info: "bg-sky-950/60 text-sky-400 border-sky-500/30",
-    purple: "bg-indigo-950/60 text-indigo-400 border-indigo-500/30",
+    default: "bg-[#161d27] text-slate-300 border-white/[0.08]",
+    secondary: "bg-[#192231] text-slate-400 border-slate-700/50",
+    success: "bg-emerald-950/40 text-emerald-400 border-emerald-500/30",
+    warning: "bg-amber-950/40 text-amber-400 border-amber-500/30",
+    danger: "bg-red-950/40 text-red-400 border-red-500/30",
+    info: "bg-cyan-950/40 text-cyan-400 border-cyan-500/30",
+    gold: "bg-amber-500/15 text-amber-300 border-amber-500/30",
   };
 
   const displayText = children || (status ? status.replace(/_/g, " ") : "");
@@ -49,7 +59,7 @@ export function Badge({ className, status, variant, children, ...props }: BadgeP
     <span
       className={twMerge(
         clsx(
-          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider border",
+          "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider border",
           variants[resolvedVariant],
           className
         )

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trophy, Shield, AlertCircle, ArrowRight, KeyRound } from "lucide-react";
+import { AlertCircle, KeyRound, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -46,17 +46,17 @@ export default function LoginPage() {
     <div className="flex-1 flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-4 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-black text-white text-lg font-mono">
+          <Link href="/" className="inline-flex items-center gap-2.5 mb-4 group">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center font-black text-black text-lg font-mono shadow-lg shadow-amber-500/20">
               A
             </div>
             <span className="font-extrabold text-2xl tracking-tight text-white font-mono">
-              ARENA<span className="text-indigo-400">HUB</span>
+              ARENA<span className="text-amber-500">HUB</span>
             </span>
           </Link>
-          <h2 className="text-2xl font-black text-white">Welcome Back</h2>
+          <h2 className="text-2xl font-black text-white">Sign In to Platform</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Sign in to access registered tournaments and team rosters.
+            Access tournament lobbies, time-locked credentials, and squad rosters.
           </p>
         </div>
 
@@ -67,12 +67,12 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-[#0f1420] border border-white/10 rounded-2xl p-6 sm:p-8 space-y-4 mb-6 shadow-2xl">
+        <form onSubmit={handleSubmit} className="bg-[#0e131b] border border-white/10 rounded-2xl p-6 sm:p-8 space-y-4 mb-6 shadow-2xl">
           <Input
             label="Email Address"
             type="email"
             required
-            placeholder="player@arenahub.gg"
+            placeholder="captain@arenahub.gg"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -86,55 +86,71 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <Button type="submit" variant="primary" size="md" className="w-full mt-2" isLoading={loading}>
+          <Button type="submit" variant="primary" size="md" className="w-full mt-2 font-bold tracking-wide" isLoading={loading}>
             Sign In to ArenaHub
           </Button>
         </form>
 
-        {/* Quick Demo Sign-in Helper Box */}
-        <div className="bg-[#0c0f18] border border-white/5 rounded-2xl p-4 mb-6">
-          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-400 mb-3">
-            <KeyRound className="w-3.5 h-3.5" /> Instant Demo Sign-In
+        {/* 6-Role Instant Demo Sign-In Switcher */}
+        <div className="bg-[#0e131b]/80 border border-white/10 rounded-2xl p-4 mb-6">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-400 mb-3">
+            <KeyRound className="w-3.5 h-3.5" /> 1-Click Demo Profiles (6 Roles)
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <button
               type="button"
               onClick={() => handleQuickLogin("admin@arenahub.gg", "ArenaAdmin123!")}
-              className="p-2.5 rounded-lg bg-slate-900 border border-white/10 hover:border-indigo-500/40 text-left transition-colors"
+              className="p-2.5 rounded-lg bg-[#090c10] border border-white/10 hover:border-amber-500/50 text-left transition-colors"
             >
-              <span className="font-bold text-white block">👑 Admin</span>
-              <span className="text-[10px] text-slate-500 font-mono">admin@arenahub.gg</span>
+              <span className="font-bold text-white block">👑 Platform Admin</span>
+              <span className="text-[10px] text-slate-400 font-mono">admin@arenahub.gg</span>
             </button>
             <button
               type="button"
               onClick={() => handleQuickLogin("organizer@arenahub.gg", "Organizer123!")}
-              className="p-2.5 rounded-lg bg-slate-900 border border-white/10 hover:border-indigo-500/40 text-left transition-colors"
+              className="p-2.5 rounded-lg bg-[#090c10] border border-white/10 hover:border-amber-500/50 text-left transition-colors"
             >
               <span className="font-bold text-white block">🎯 Organizer</span>
-              <span className="text-[10px] text-slate-500 font-mono">organizer@arenahub.gg</span>
+              <span className="text-[10px] text-slate-400 font-mono">organizer@arenahub.gg</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("referee@arenahub.gg", "Password123!")}
+              className="p-2.5 rounded-lg bg-[#090c10] border border-white/10 hover:border-amber-500/50 text-left transition-colors"
+            >
+              <span className="font-bold text-white block">⚖️ Senior Referee</span>
+              <span className="text-[10px] text-slate-400 font-mono">referee@arenahub.gg</span>
             </button>
             <button
               type="button"
               onClick={() => handleQuickLogin("captain@arenahub.gg", "Password123!")}
-              className="p-2.5 rounded-lg bg-slate-900 border border-white/10 hover:border-indigo-500/40 text-left transition-colors"
+              className="p-2.5 rounded-lg bg-[#090c10] border border-white/10 hover:border-amber-500/50 text-left transition-colors"
             >
-              <span className="font-bold text-white block">🛡️ Captain</span>
-              <span className="text-[10px] text-slate-500 font-mono">captain@arenahub.gg</span>
+              <span className="font-bold text-white block">🛡️ Squad Captain</span>
+              <span className="text-[10px] text-slate-400 font-mono">captain@arenahub.gg</span>
             </button>
             <button
               type="button"
               onClick={() => handleQuickLogin("player@arenahub.gg", "Password123!")}
-              className="p-2.5 rounded-lg bg-slate-900 border border-white/10 hover:border-indigo-500/40 text-left transition-colors"
+              className="p-2.5 rounded-lg bg-[#090c10] border border-white/10 hover:border-amber-500/50 text-left transition-colors"
             >
-              <span className="font-bold text-white block">⚡ Player</span>
-              <span className="text-[10px] text-slate-500 font-mono">player@arenahub.gg</span>
+              <span className="font-bold text-white block">⚡ Squad Player</span>
+              <span className="text-[10px] text-slate-400 font-mono">player@arenahub.gg</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("spectator@arenahub.gg", "Password123!")}
+              className="p-2.5 rounded-lg bg-[#090c10] border border-white/10 hover:border-amber-500/50 text-left transition-colors"
+            >
+              <span className="font-bold text-white block">👁️ Spectator</span>
+              <span className="text-[10px] text-slate-400 font-mono">spectator@arenahub.gg</span>
             </button>
           </div>
         </div>
 
         <p className="text-center text-xs text-slate-400">
           Don't have an account yet?{" "}
-          <Link href="/auth/register" className="text-indigo-400 hover:text-indigo-300 font-semibold">
+          <Link href="/auth/register" className="text-amber-400 hover:text-amber-300 font-semibold">
             Create an account
           </Link>
         </p>

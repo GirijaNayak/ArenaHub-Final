@@ -25,10 +25,10 @@ describe("Authentication & Security Unit Tests", () => {
   it("should sign and verify valid JWT session tokens", async () => {
     const payload: SessionPayload = {
       userId: "user_test_123",
-      email: "player@arenahub.gg",
-      username: "pro_player",
-      name: "Pro Player",
-      role: "PLAYER",
+      email: "captain@arenahub.gg",
+      username: "godl_jonathan",
+      name: "Jonathan Amaral",
+      role: "TEAM_CAPTAIN",
     };
 
     const token = await signSessionToken(payload);
@@ -39,7 +39,7 @@ describe("Authentication & Security Unit Tests", () => {
     expect(verified).not.toBeNull();
     expect(verified?.userId).toBe(payload.userId);
     expect(verified?.username).toBe(payload.username);
-    expect(verified?.role).toBe("PLAYER");
+    expect(verified?.role).toBe("TEAM_CAPTAIN");
   });
 
   it("should reject invalid or tampered tokens", async () => {
@@ -53,32 +53,44 @@ describe("Authentication & Security Unit Tests", () => {
       userId: "p1",
       email: "p@a.gg",
       username: "p",
-      name: "P",
+      name: "Player",
       role: "PLAYER",
     };
     const organizer: SessionPayload = {
       userId: "o1",
       email: "o@a.gg",
       username: "o",
-      name: "O",
-      role: "ORGANIZER",
+      name: "Organizer",
+      role: "TOURNAMENT_ORGANIZER",
+    };
+    const referee: SessionPayload = {
+      userId: "r1",
+      email: "r@a.gg",
+      username: "r",
+      name: "Referee",
+      role: "REFEREE",
     };
     const admin: SessionPayload = {
       userId: "a1",
       email: "a@a.gg",
       username: "a",
-      name: "A",
-      role: "ADMIN",
+      name: "Admin",
+      role: "PLATFORM_ADMIN",
     };
 
     // Organizer check
-    expect(requireRole(player, ["ORGANIZER"])).toBe(false);
-    expect(requireRole(organizer, ["ORGANIZER"])).toBe(true);
-    expect(requireRole(admin, ["ORGANIZER"])).toBe(true); // Admins inherit organizer rights
+    expect(requireRole(player, ["TOURNAMENT_ORGANIZER"])).toBe(false);
+    expect(requireRole(organizer, ["TOURNAMENT_ORGANIZER"])).toBe(true);
+    expect(requireRole(admin, ["TOURNAMENT_ORGANIZER"])).toBe(true); // Super-user PLATFORM_ADMIN inherits
 
-    // Admin check
-    expect(requireRole(player, ["ADMIN"])).toBe(false);
-    expect(requireRole(organizer, ["ADMIN"])).toBe(false);
-    expect(requireRole(admin, ["ADMIN"])).toBe(true);
+    // Referee check
+    expect(requireRole(player, ["REFEREE"])).toBe(false);
+    expect(requireRole(referee, ["REFEREE"])).toBe(true);
+    expect(requireRole(admin, ["REFEREE"])).toBe(true);
+
+    // Platform Admin check
+    expect(requireRole(player, ["PLATFORM_ADMIN"])).toBe(false);
+    expect(requireRole(organizer, ["PLATFORM_ADMIN"])).toBe(false);
+    expect(requireRole(admin, ["PLATFORM_ADMIN"])).toBe(true);
   });
 });

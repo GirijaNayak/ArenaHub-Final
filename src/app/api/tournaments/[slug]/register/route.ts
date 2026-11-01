@@ -10,7 +10,7 @@ export async function POST(
   try {
     const session = await getSessionUser(req);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized: Please sign in to register" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Please sign in" }, { status: 401 });
     }
 
     const { slug } = await params;
@@ -23,22 +23,26 @@ export async function POST(
       return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json();
     const teamId = body?.teamId;
 
-    const registration = await TournamentService.register(
+    if (!teamId) {
+      return NextResponse.json({ error: "A squad team must be selected for registration" }, { status: 400 });
+    }
+
+    const registration = await TournamentService.registerSquad(
       session.userId,
       tournament.id,
       teamId
     );
 
     return NextResponse.json(
-      { message: "Successfully registered for tournament", registration },
+      { message: "Squad successfully registered for tournament", registration },
       { status: 201 }
     );
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Registration failed" },
+      { error: error.message || "Squad registration failed" },
       { status: 400 }
     );
   }

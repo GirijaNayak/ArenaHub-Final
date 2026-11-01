@@ -7,10 +7,9 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || undefined;
-    const gameSlug = searchParams.get("game") || undefined;
-    const limit = parseInt(searchParams.get("limit") || "12", 10);
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
 
-    const teams = await TeamService.list({ search, gameSlug, limit });
+    const teams = await TeamService.list({ search, limit });
     return NextResponse.json({ teams });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const team = await TeamService.create(session.userId, validated.data);
     return NextResponse.json(
-      { message: "Team created successfully", team },
+      { message: "Squad team created successfully", team },
       { status: 201 }
     );
   } catch (error: any) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TeamService } from "@/services/team.service";
+import { DisputeService } from "@/services/dispute.service";
 import { getSessionUser } from "@/lib/auth";
-import { inviteMemberSchema } from "@/lib/validations";
+import { resolveDisputeSchema } from "@/lib/validations";
 
 export async function POST(
   req: NextRequest,
@@ -13,9 +13,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: teamId } = await params;
+    const { id: disputeId } = await params;
     const body = await req.json();
-    const validated = inviteMemberSchema.safeParse(body);
+    const validated = resolveDisputeSchema.safeParse(body);
 
     if (!validated.success) {
       return NextResponse.json(
@@ -24,16 +24,13 @@ export async function POST(
       );
     }
 
-    const invite = await TeamService.invitePlayer(
+    const resolved = await DisputeService.resolveDispute(
       session.userId,
-      teamId,
-      validated.data.usernameOrEmail
+      disputeId,
+      validated.data
     );
 
-    return NextResponse.json(
-      { message: "Invitation sent successfully", invite },
-      { status: 201 }
-    );
+    return NextResponse.json({ message: "Dispute decision recorded", dispute: resolved });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

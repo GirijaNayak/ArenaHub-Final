@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trophy, AlertCircle, ArrowRight } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -15,6 +15,8 @@ export default function RegisterPage() {
     email: "",
     password: "",
     role: "PLAYER",
+    inGameName: "",
+    inGameId: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,21 +44,28 @@ export default function RegisterPage() {
     }
   };
 
+  const roleOptions = [
+    { id: "PLAYER", label: "⚡ Squad Player", desc: "Join rosters & compete in lobbies" },
+    { id: "TEAM_CAPTAIN", label: "🛡️ Squad Captain", desc: "Lead 4-player squad & file disputes" },
+    { id: "TOURNAMENT_ORGANIZER", label: "🎯 Tournament Organizer", desc: "Create tournaments & manage lobbies" },
+    { id: "REFEREE", label: "⚖️ Senior Referee", desc: "Verify scores & resolve disputes" },
+  ];
+
   return (
     <div className="flex-1 flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-4 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-black text-white text-lg font-mono">
+          <Link href="/" className="inline-flex items-center gap-2.5 mb-4 group">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center font-black text-black text-lg font-mono shadow-lg shadow-amber-500/20">
               A
             </div>
             <span className="font-extrabold text-2xl tracking-tight text-white font-mono">
-              ARENA<span className="text-indigo-400">HUB</span>
+              ARENA<span className="text-amber-500">HUB</span>
             </span>
           </Link>
-          <h2 className="text-2xl font-black text-white">Join ArenaHub</h2>
+          <h2 className="text-2xl font-black text-white">Join ArenaHub Esports</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Create an account to compete in tournaments or host competitions.
+            Create an esports profile for Battle-Royale tournaments, lobbies, and official circuits.
           </p>
         </div>
 
@@ -67,80 +76,94 @@ export default function RegisterPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-[#0f1420] border border-white/10 rounded-2xl p-6 sm:p-8 space-y-4 mb-6 shadow-2xl">
-          <Input
-            label="Full Name"
-            required
-            placeholder="Marcus Vance"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          />
+        <form onSubmit={handleSubmit} className="bg-[#0e131b] border border-white/10 rounded-2xl p-6 sm:p-8 space-y-4 mb-6 shadow-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Full Name"
+              required
+              placeholder="Jonathan Amaral"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            />
+            <Input
+              label="Platform Username"
+              required
+              placeholder="jonathan_godl"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+            />
+          </div>
 
-          <Input
-            label="Username (Gamer Tag)"
-            required
-            placeholder="apex_striker"
-            value={formData.username}
-            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Email Address"
+              type="email"
+              required
+              placeholder="jonathan@godl.gg"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+            <Input
+              label="Password (min 8 chars)"
+              type="password"
+              required
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
+          </div>
 
-          <Input
-            label="Email Address"
-            type="email"
-            required
-            placeholder="player@example.com"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          />
-
-          <Input
-            label="Password (min 8 chars)"
-            type="password"
-            required
-            placeholder="••••••••"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-white/5">
+            <Input
+              label="In-Game Name (IGN)"
+              placeholder="GodL-JONATHAN"
+              value={formData.inGameName}
+              onChange={(e) => setFormData({ ...formData, inGameName: e.target.value })}
+            />
+            <Input
+              label="Character ID (In-Game ID)"
+              placeholder="511223344"
+              value={formData.inGameId}
+              onChange={(e) => setFormData({ ...formData, inGameId: e.target.value })}
+            />
+          </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Primary Role
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
+              Competitive Platform Role
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: "PLAYER" })}
-                className={`p-3 rounded-lg border text-xs font-bold text-center transition-all ${
-                  formData.role === "PLAYER"
-                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-300"
-                    : "bg-slate-900 border-white/10 text-slate-400 hover:border-white/20"
-                }`}
-              >
-                🎮 Player / Competitor
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: "ORGANIZER" })}
-                className={`p-3 rounded-lg border text-xs font-bold text-center transition-all ${
-                  formData.role === "ORGANIZER"
-                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-300"
-                    : "bg-slate-900 border-white/10 text-slate-400 hover:border-white/20"
-                }`}
-              >
-                🎯 Tournament Organizer
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {roleOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, role: opt.id })}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    formData.role === opt.id
+                      ? "bg-amber-500/10 border-amber-500/60 shadow-sm"
+                      : "bg-[#090c10] border-white/10 text-slate-400 hover:border-white/20"
+                  }`}
+                >
+                  <span className={`font-bold text-xs block ${formData.role === opt.id ? "text-amber-400" : "text-white"}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5 leading-snug">
+                    {opt.desc}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
-          <Button type="submit" variant="primary" size="md" className="w-full mt-2" isLoading={loading}>
-            Create ArenaHub Account
+          <Button type="submit" variant="primary" size="md" className="w-full mt-4 font-bold tracking-wide" isLoading={loading}>
+            Create Esports Profile
           </Button>
         </form>
 
         <p className="text-center text-xs text-slate-400">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="text-indigo-400 hover:text-indigo-300 font-semibold">
-            Sign In
+          Already registered?{" "}
+          <Link href="/auth/login" className="text-amber-400 hover:text-amber-300 font-semibold">
+            Sign In to your Account
           </Link>
         </p>
       </div>

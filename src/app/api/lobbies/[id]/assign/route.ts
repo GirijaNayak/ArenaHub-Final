@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TeamService } from "@/services/team.service";
+import { LobbyService } from "@/services/lobby.service";
 import { getSessionUser } from "@/lib/auth";
+import { assignLobbyTeamSchema } from "@/lib/validations";
 
 export async function POST(
   req: NextRequest,
@@ -12,19 +13,24 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: inviteId } = await params;
+    const { id: lobbyId } = await params;
     const body = await req.json();
-    const action = body?.action; // "ACCEPT" | "DECLINE"
+    const validated = assignLobbyTeamSchema.safeParse(body);
 
-    if (action !== "ACCEPT" && action !== "DECLINE") {
+    if (!validated.success) {
       return NextResponse.json(
-        { error: "Invalid action. Must be 'ACCEPT' or 'DECLINE'" },
+        { error: "Validation failed", details: validated.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
 
-    const result = await TeamService.respondToInvite(session.userId, inviteId, action);
-    return NextResponse.json({ message: `Invitation ${action.toLowerCase()}ed`, result });
+    const assignment = await LobbyService.assignTeam(
+      session.userId,
+      lobbyId,
+      validated.data
+    );
+
+    return NextResponse.json({ message: "Team assigned to lobby slot", assignment }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

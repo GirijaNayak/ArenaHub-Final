@@ -1,65 +1,149 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { createTeamSchema } from "@/lib/validations";
+import { createTeamSchema, addTeamPlayerSchema } from "@/lib/validations";
 
 export class TeamService {
-  static async create(userId: string, data: z.infer<typeof createTeamSchema>) {
-    // Check if team tag already exists for this game
-    const existing = await prisma.team.findFirst({
-      where: {
-        tag: data.tag.toUpperCase(),
-        gameId: data.gameId,
-      },
+  /**
+   * Create a new competitive 4-player squad team
+   */
+  static async create(
+    captainId: string,
+    data: z.infer<typeof createTeamSchema>
+  ) {
+    // Check unique tag
+    const existingTag = await prisma.team.findUnique({
+      where: { tag: data.tag.toUpperCase() },
     });
 
-    if (existing) {
-      throw new Error("A team with this tag already exists for this game");
+    if (existingTag) {
+      throw new Error(`Team tag [${data.tag.toUpperCase()}] is already in use by another team`);
     }
 
     const team = await prisma.team.create({
       data: {
         name: data.name,
         tag: data.tag.toUpperCase(),
-        gameId: data.gameId,
-        captainId: userId,
         description: data.description || null,
         logoUrl: data.logoUrl || null,
-        members: {
-          create: {
-            userId,
-            role: "CAPTAIN",
-          },
+        captainId,
+        players: {
+          create: data.players.map((p) => ({
+            playerName: p.playerName,
+            inGameId: p.inGameId,
+            role: p.role || "PLAYER",
+          })),
         },
       },
       include: {
-        game: true,
-        captain: {
-          select: { id: true, name: true, username: true },
-        },
-        members: {
-          include: {
-            user: { select: { id: true, name: true, username: true, avatarUrl: true } },
-          },
-        },
+        captain: { select: { id: true, name: true, username: true } },
+        players: true,
       },
+    });
+
+    // Update user role to TEAM_CAPTAIN if currently PLAYER
+    await prisma.user.updateMany({
+      where: { id: captainId, role: "PLAYER" },
+      data: { role: "TEAM_CAPTAIN" },
     });
 
     return team;
   }
 
+  /**
+   * Add a player to the team roster (max 5 players: 4 squad + 1 sub)
+   */
+  static async addPlayer(
+    captainId: string,
+    teamId: string,
+    data: z.infer<typeof addTeamPlayerSchema>
+  ) {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { players: true },
+    });
+
+    if (!team) throw new Error("Team not found");
+    if (team.captainId !== captainId) {
+      throw new Error("Only the team captain can manage the roster");
+    }
+
+    if (team.players.length >= 5) {
+      throw new Error("Roster capacity reached (maximum 5 players: 4 squad members + 1 substitute)");
+    }
+
+    // Check duplicate inGameId on team
+    const duplicate = team.players.find((p) => p.inGameId === data.inGameId);
+    if (duplicate) {
+      throw new Error(`Game ID ${data.inGameId} is already registered on this team`);
+    }
+
+    // Link userId if matching user exists
+    const matchingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { inGameId: data.inGameId },
+          { username: data.playerName.toLowerCase() },
+        ],
+      },
+      select: { id: true },
+    });
+
+    const player = await prisma.teamPlayer.create({
+      data: {
+        teamId,
+        playerName: data.playerName,
+        inGameId: data.inGameId,
+        role: data.role || "PLAYER",
+        userId: matchingUser?.id || null,
+      },
+    });
+
+    return player;
+  }
+
+  /**
+   * Remove a player from the team roster
+   */
+  static async removePlayer(
+    captainId: string,
+    teamId: string,
+    playerId: string
+  ) {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { players: true },
+    });
+
+    if (!team) throw new Error("Team not found");
+    if (team.captainId !== captainId) {
+      throw new Error("Only the team captain can modify the roster");
+    }
+
+    const player = team.players.find((p) => p.id === playerId);
+    if (!player) throw new Error("Player not found on this team");
+
+    if (player.role === "CAPTAIN") {
+      throw new Error("Cannot remove the team captain. Transfer captain role first.");
+    }
+
+    await prisma.teamPlayer.delete({
+      where: { id: playerId },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * List competitive teams
+   */
   static async list({
-    gameSlug,
     search,
-    limit = 12,
+    limit = 20,
   }: {
-    gameSlug?: string;
     search?: string;
     limit?: number;
   }) {
     const where: any = {};
-    if (gameSlug) {
-      where.game = { slug: gameSlug };
-    }
     if (search) {
       where.OR = [
         { name: { contains: search } },
@@ -72,192 +156,66 @@ export class TeamService {
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        game: true,
         captain: { select: { id: true, name: true, username: true } },
-        _count: { select: { members: true, tournamentRegistrations: true } },
+        players: true,
+        _count: {
+          select: { tournamentRegistrations: true, lobbyAssignments: true },
+        },
       },
     });
   }
 
+  /**
+   * Get team profile by ID with roster and tournament registrations
+   */
   static async getById(teamId: string) {
     return prisma.team.findUnique({
       where: { id: teamId },
       include: {
-        game: true,
-        captain: { select: { id: true, name: true, username: true, avatarUrl: true } },
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, username: true, avatarUrl: true, role: true },
-            },
-          },
-          orderBy: { joinedAt: "asc" },
-        },
-        invites: {
-          include: {
-            invitee: { select: { id: true, name: true, username: true } },
-          },
-        },
+        captain: { select: { id: true, name: true, username: true, email: true } },
+        players: true,
         tournamentRegistrations: {
           include: {
             tournament: {
-              include: { game: true },
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+                game: true,
+                status: true,
+                tournamentStart: true,
+              },
             },
           },
           orderBy: { registeredAt: "desc" },
         },
-      },
-    });
-  }
-
-  static async invitePlayer(
-    captainId: string,
-    teamId: string,
-    usernameOrEmail: string
-  ) {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    });
-
-    if (!team) throw new Error("Team not found");
-    if (team.captainId !== captainId) {
-      throw new Error("Only the team captain can invite new members");
-    }
-
-    const invitee = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username: usernameOrEmail.toLowerCase() },
-          { email: usernameOrEmail.toLowerCase() },
-        ],
-      },
-    });
-
-    if (!invitee) {
-      throw new Error("No user found with the provided username or email");
-    }
-
-    // Check if already a member
-    const existingMember = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId, userId: invitee.id },
-      },
-    });
-
-    if (existingMember) {
-      throw new Error("User is already a member of this team");
-    }
-
-    // Check if pending invite exists
-    const existingInvite = await prisma.teamInvite.findFirst({
-      where: {
-        teamId,
-        inviteeId: invitee.id,
-        status: "PENDING",
-      },
-    });
-
-    if (existingInvite) {
-      throw new Error("A pending invitation has already been sent to this user");
-    }
-
-    const invite = await prisma.teamInvite.create({
-      data: {
-        teamId,
-        inviteeId: invitee.id,
-        inviterId: captainId,
-        status: "PENDING",
-      },
-    });
-
-    // Send notification
-    await prisma.notification.create({
-      data: {
-        userId: invitee.id,
-        title: "Team Invitation Received",
-        message: `You've been invited to join team ${team.name} [${team.tag}].`,
-        type: "TEAM",
-        linkUrl: `/dashboard/teams`,
-      },
-    });
-
-    return invite;
-  }
-
-  static async respondToInvite(
-    userId: string,
-    inviteId: string,
-    action: "ACCEPT" | "DECLINE"
-  ) {
-    const invite = await prisma.teamInvite.findUnique({
-      where: { id: inviteId },
-      include: { team: true },
-    });
-
-    if (!invite) throw new Error("Invitation not found");
-    if (invite.inviteeId !== userId) {
-      throw new Error("Unauthorized: Invitation was not addressed to you");
-    }
-
-    if (invite.status !== "PENDING") {
-      throw new Error(`Invitation is no longer active (Status: ${invite.status})`);
-    }
-
-    if (action === "ACCEPT") {
-      await prisma.$transaction([
-        prisma.teamInvite.update({
-          where: { id: inviteId },
-          data: { status: "ACCEPTED" },
-        }),
-        prisma.teamMember.create({
-          data: {
-            teamId: invite.teamId,
-            userId,
-            role: "MEMBER",
+        lobbyAssignments: {
+          include: {
+            lobby: {
+              select: {
+                id: true,
+                title: true,
+                mapName: true,
+                scheduledTime: true,
+                status: true,
+                tournament: { select: { title: true, slug: true } },
+              },
+            },
           },
-        }),
-        prisma.notification.create({
-          data: {
-            userId: invite.team.captainId,
-            title: "Invitation Accepted",
-            message: `A new member has joined ${invite.team.name}!`,
-            type: "TEAM",
-            linkUrl: `/teams/${invite.teamId}`,
+        },
+        lobbyResults: {
+          include: {
+            lobby: {
+              select: {
+                id: true,
+                title: true,
+                tournament: { select: { title: true, slug: true } },
+              },
+            },
           },
-        }),
-      ]);
-
-      return { status: "ACCEPTED" };
-    } else {
-      await prisma.teamInvite.update({
-        where: { id: inviteId },
-        data: { status: "DECLINE" },
-      });
-
-      return { status: "DECLINED" };
-    }
-  }
-
-  static async removeMember(captainId: string, teamId: string, memberUserId: string) {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    });
-
-    if (!team) throw new Error("Team not found");
-    if (team.captainId !== captainId && captainId !== memberUserId) {
-      throw new Error("Unauthorized to remove member from team");
-    }
-
-    if (memberUserId === team.captainId) {
-      throw new Error("Captain cannot be removed. Transfer leadership or disband team.");
-    }
-
-    await prisma.teamMember.delete({
-      where: {
-        teamId_userId: { teamId, userId: memberUserId },
+          orderBy: { submittedAt: "desc" },
+        },
       },
     });
-
-    return { success: true };
   }
 }

@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MatchService } from "@/services/match.service";
+import { LobbyService } from "@/services/lobby.service";
 import { getSessionUser } from "@/lib/auth";
-import { reportMatchResultSchema } from "@/lib/validations";
+import { createLobbySchema } from "@/lib/validations";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSessionUser(req);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Please sign in" }, { status: 401 });
     }
 
     const body = await req.json();
-    const validated = reportMatchResultSchema.safeParse(body);
+    const validated = createLobbySchema.safeParse(body);
 
     if (!validated.success) {
       return NextResponse.json(
@@ -20,16 +20,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const updatedMatch = await MatchService.reportResult(
-      session.userId,
-      session.role,
-      validated.data
-    );
-
-    return NextResponse.json({
-      message: "Match result successfully reported and verified",
-      match: updatedMatch,
-    });
+    const lobby = await LobbyService.create(session.userId, validated.data);
+    return NextResponse.json({ message: "Lobby created successfully", lobby }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

@@ -2,44 +2,39 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trophy, ArrowLeft, AlertCircle } from "lucide-react";
+import { Trophy, ArrowLeft, AlertCircle, Building2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface GameOption {
-  id: string;
-  title: string;
-  slug: string;
-}
-
 export default function CreateTournamentPage() {
   const router = useRouter();
-  const [games, setGames] = useState<GameOption[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    organizationId: "",
     title: "",
     description: "",
-    gameId: "",
-    type: "SOLO",
-    format: "SINGLE_ELIMINATION",
-    maxParticipants: 8,
-    registrationDeadline: "",
-    startDate: "",
-    rulesText: "Standard tournament draft. Anti-cheat required. Respect match officials.",
-    prizePool: 0,
+    game: "BGMI",
+    rules: "Standard Battle-Royale competitive ruleset. Emulators strictly prohibited. Room ID & password will be revealed 15 minutes before match start. Captains must submit end-game screenshot proof for score disputes.",
+    teamCapacity: 20,
+    teamSize: 4,
+    registrationStart: "",
+    registrationEnd: "",
+    tournamentStart: "",
+    prizePool: 10000,
     bannerUrl: "",
   });
 
   useEffect(() => {
-    fetch("/api/games")
+    fetch("/api/organizations")
       .then((res) => res.json())
       .then((data) => {
-        if (data.games && data.games.length > 0) {
-          setGames(data.games);
-          setFormData((prev) => ({ ...prev, gameId: data.games[0].id }));
+        if (data.organizations && data.organizations.length > 0) {
+          setOrganizations(data.organizations);
+          setFormData((prev) => ({ ...prev, organizationId: data.organizations[0].id }));
         }
       })
       .catch(() => {});
@@ -56,10 +51,12 @@ export default function CreateTournamentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          maxParticipants: Number(formData.maxParticipants),
+          teamCapacity: Number(formData.teamCapacity),
+          teamSize: Number(formData.teamSize),
           prizePool: Number(formData.prizePool),
-          registrationDeadline: new Date(formData.registrationDeadline).toISOString(),
-          startDate: new Date(formData.startDate).toISOString(),
+          registrationStart: new Date(formData.registrationStart).toISOString(),
+          registrationEnd: new Date(formData.registrationEnd).toISOString(),
+          tournamentStart: new Date(formData.tournamentStart).toISOString(),
         }),
       });
 
@@ -76,141 +73,160 @@ export default function CreateTournamentPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 w-full flex-1">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 w-full flex-1">
       <Link
         href="/tournaments"
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-6 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-5 transition-colors font-mono"
       >
         <ArrowLeft className="w-3.5 h-3.5" /> Back to Tournaments
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+        <div className="w-9 h-9 rounded bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
           <Trophy className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-black text-white">Create New Tournament</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-white font-mono">
+            Create Battle-Royale Tournament
+          </h1>
           <p className="text-xs text-slate-400">
-            Configure rules, format, seeding parameters, and eligibility.
+            Set up shared match lobbies, squad capacity, rules, and scoring parameters.
           </p>
         </div>
       </div>
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 p-4 text-xs bg-rose-950/40 border border-rose-500/30 text-rose-300 rounded-xl">
+        <div className="mb-5 flex items-center gap-2 p-3 text-xs bg-red-950/40 border border-red-500/30 text-red-300 rounded">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 bg-[#0f1420] border border-white/10 rounded-2xl p-6 sm:p-8">
+      <form onSubmit={handleSubmit} className="space-y-4 surface-panel p-5 sm:p-7 rounded-lg">
+        {/* Organization selection */}
+        <div>
+          <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            Hosting Organization (Tenant)
+          </label>
+          {organizations.length === 0 ? (
+            <div className="p-3 bg-[#141b27] border border-white/10 rounded text-xs text-amber-300">
+              No organization found. Please register or join an organization first.
+            </div>
+          ) : (
+            <select
+              value={formData.organizationId}
+              onChange={(e) => setFormData({ ...formData, organizationId: e.target.value })}
+              className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-white focus:outline-none focus:border-amber-500"
+            >
+              {organizations.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} ({org.slug})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
         <Input
           label="Tournament Title"
           required
-          placeholder="e.g. VALORANT Winter Masters Invitational"
+          placeholder="e.g. BGMI Pro Scrims Series — Season 1"
           value={formData.title}
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
         />
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-            Description
+          <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            Description & Circuit Overview
           </label>
           <textarea
             required
-            rows={3}
-            placeholder="Outline competition overview, tier eligibility, and broadcast details..."
+            rows={2}
+            placeholder="Official tournament circuit details, streaming broadcasts, and squad requirements..."
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className="w-full bg-[#141a27] border border-white/10 rounded-lg p-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Esports Game Title
+            <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              Battle-Royale Title
             </label>
             <select
-              value={formData.gameId}
-              onChange={(e) => setFormData({ ...formData, gameId: e.target.value })}
-              className="w-full bg-[#141a27] border border-white/10 rounded-lg p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              value={formData.game}
+              onChange={(e) => setFormData({ ...formData, game: e.target.value })}
+              className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-white focus:outline-none focus:border-amber-500"
             >
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
+              <option value="BGMI">BGMI (Battlegrounds Mobile India)</option>
+              <option value="PUBG Mobile">PUBG Mobile</option>
+              <option value="Apex Legends">Apex Legends</option>
+              <option value="FreeFire">Free Fire MAX</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Registration Type
+            <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              Squad Capacity (Max Teams)
             </label>
             <select
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              className="w-full bg-[#141a27] border border-white/10 rounded-lg p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              value={formData.teamCapacity}
+              onChange={(e) => setFormData({ ...formData, teamCapacity: parseInt(e.target.value) })}
+              className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-white focus:outline-none focus:border-amber-500"
             >
-              <option value="SOLO">Solo (Individual Competitors)</option>
-              <option value="TEAM">Team (Rosters Registered by Captains)</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Bracket Format
-            </label>
-            <select
-              value={formData.format}
-              onChange={(e) => setFormData({ ...formData, format: e.target.value })}
-              className="w-full bg-[#141a27] border border-white/10 rounded-lg p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-            >
-              <option value="SINGLE_ELIMINATION">Single Elimination Knockout</option>
+              <option value="16">16 Squads (1 Lobby)</option>
+              <option value="20">20 Squads (1 Lobby)</option>
+              <option value="25">25 Squads (1 Full Room)</option>
+              <option value="50">50 Squads (Multi-Group)</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Max Bracket Slots
+            <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              Squad Size (Players)
             </label>
             <select
-              value={formData.maxParticipants}
-              onChange={(e) => setFormData({ ...formData, maxParticipants: parseInt(e.target.value) })}
-              className="w-full bg-[#141a27] border border-white/10 rounded-lg p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              value={formData.teamSize}
+              onChange={(e) => setFormData({ ...formData, teamSize: parseInt(e.target.value) })}
+              className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-white focus:outline-none focus:border-amber-500"
             >
-              <option value="4">4 Competitors (Semifinals + Final)</option>
-              <option value="8">8 Competitors (Quarterfinals to Final)</option>
-              <option value="16">16 Competitors (Round of 16 to Final)</option>
-              <option value="32">32 Competitors</option>
+              <option value="4">4 Players (Standard Squad)</option>
+              <option value="2">2 Players (Duo)</option>
+              <option value="1">1 Player (Solo)</option>
             </select>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Input
-            label="Registration Deadline"
+            label="Registration Opens"
             type="datetime-local"
             required
-            value={formData.registrationDeadline}
-            onChange={(e) => setFormData({ ...formData, registrationDeadline: e.target.value })}
+            value={formData.registrationStart}
+            onChange={(e) => setFormData({ ...formData, registrationStart: e.target.value })}
           />
 
           <Input
-            label="Tournament Start Date"
+            label="Registration Closes"
             type="datetime-local"
             required
-            value={formData.startDate}
-            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+            value={formData.registrationEnd}
+            onChange={(e) => setFormData({ ...formData, registrationEnd: e.target.value })}
+          />
+
+          <Input
+            label="Tournament Start"
+            type="datetime-local"
+            required
+            value={formData.tournamentStart}
+            onChange={(e) => setFormData({ ...formData, tournamentStart: e.target.value })}
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
-            label="Prize Pool ($ USD)"
+            label="Prize Pool (₹ INR)"
             type="number"
             min="0"
             value={formData.prizePool}
@@ -226,21 +242,21 @@ export default function CreateTournamentPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-            Official Rules & Regulations
+          <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            Official Rules & Dispute Policy
           </label>
           <textarea
             required
-            rows={4}
-            value={formData.rulesText}
-            onChange={(e) => setFormData({ ...formData, rulesText: e.target.value })}
-            className="w-full bg-[#141a27] border border-white/10 rounded-lg p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+            rows={3}
+            value={formData.rules}
+            onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
+            className="w-full bg-[#141a27] border border-white/10 rounded p-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
           />
         </div>
 
-        <div className="pt-4 border-t border-white/10 flex justify-end">
-          <Button type="submit" variant="primary" size="lg" isLoading={loading}>
-            Publish Tournament
+        <div className="pt-3 border-t border-white/[0.08] flex justify-end">
+          <Button type="submit" variant="primary" size="md" isLoading={loading}>
+            Publish Tournament Draft
           </Button>
         </div>
       </form>
