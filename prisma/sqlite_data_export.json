@@ -1,0 +1,857 @@
+{
+  "counts": {
+    "users": 9,
+    "organizations": 2,
+    "orgMemberships": 5,
+    "teams": 4,
+    "teamPlayers": 16,
+    "tournaments": 2,
+    "tournamentRegistrations": 6,
+    "lobbies": 2,
+    "lobbyTeams": 8,
+    "lobbyResults": 8,
+    "disputes": 1,
+    "notifications": 4,
+    "auditLogs": 6
+  },
+  "users": [
+    {
+      "id": "cmvy6erk50000bfnocyjps01t",
+      "email": "admin@arenahub.gg",
+      "passwordHash": "$2b$10$xJmfqVS2DOCEL4cr/jHhXe/kimxbdU5.uHvsBotEseLadaq4z5Vum",
+      "name": "Vikram Malhotra",
+      "username": "admin",
+      "role": "PLATFORM_ADMIN",
+      "avatarUrl": null,
+      "bio": "Global Platform Administrator & Head of Esports Engineering.",
+      "phone": null,
+      "inGameId": "999000111",
+      "inGameName": "ArenaAdmin",
+      "createdAt": "2026-11-01T18:41:19.110Z",
+      "updatedAt": "2026-11-01T18:41:19.110Z"
+    },
+    {
+      "id": "cmvy6erki0001bfnod5zp0sk2",
+      "email": "organizer@arenahub.gg",
+      "passwordHash": "$2b$10$49DmrnBgnJt83AvfcOvisuiSiyVpT/e6jRoXwk3.sL7df0anfJl2K",
+      "name": "Rajesh Sharma",
+      "username": "organizer",
+      "role": "TOURNAMENT_ORGANIZER",
+      "avatarUrl": null,
+      "bio": "Chief Operations Director for KRAFTON Esports India.",
+      "phone": null,
+      "inGameId": "888000222",
+      "inGameName": "KraftonOps",
+      "createdAt": "2026-11-01T18:41:19.122Z",
+      "updatedAt": "2026-11-01T18:41:19.122Z"
+    },
+    {
+      "id": "cmvy6erkt0002bfnous3brz2m",
+      "email": "referee@arenahub.gg",
+      "passwordHash": "$2b$10$mVsc2LOWxjciUDjq8ZyTIeVKwFyQEQC8irUffDq8eJX0tuCLBxA/.",
+      "name": "Amit Patel",
+      "username": "referee",
+      "role": "REFEREE",
+      "avatarUrl": null,
+      "bio": "Senior League Referee & Dispute Arbitrator for Premier Tournaments.",
+      "phone": null,
+      "inGameId": "777000333",
+      "inGameName": "LeadRef-Amit",
+      "createdAt": "2026-11-01T18:41:19.133Z",
+      "updatedAt": "2026-11-01T18:41:19.133Z"
+    },
+    {
+      "id": "cmvy6erl30003bfnol5y74o1h",
+      "email": "captain@arenahub.gg",
+      "passwordHash": "$2b$10$mVsc2LOWxjciUDjq8ZyTIeVKwFyQEQC8irUffDq8eJX0tuCLBxA/.",
+      "name": "Jonathan Amaral",
+      "username": "captain",
+      "role": "TEAM_CAPTAIN",
+      "avatarUrl": null,
+      "bio": "In-Game Leader & Fragger for GodLike Esports. 6x MVP.",
+      "phone": null,
+      "inGameId": "511223344",
+      "inGameName": "GodL-JONATHAN",
+      "createdAt": "2026-11-01T18:41:19.144Z",
+      "updatedAt": "2026-11-01T18:41:19.144Z"
+    },
+    {
+      "id": "cmvy6erle0004bfno2an7w7dz",
+      "email": "player@arenahub.gg",
+      "passwordHash": "$2b$10$mVsc2LOWxjciUDjq8ZyTIeVKwFyQEQC8irUffDq8eJX0tuCLBxA/.",
+      "name": "Harsh Paudwal",
+      "username": "player",
+      "role": "PLAYER",
+      "avatarUrl": null,
+      "bio": "Assaulter for Team Soul. BMPS Champion & MVP.",
+      "phone": null,
+      "inGameId": "522334455",
+      "inGameName": "Soul-Goblin",
+      "createdAt": "2026-11-01T18:41:19.154Z",
+      "updatedAt": "2026-11-01T18:41:19.154Z"
+    },
+    {
+      "id": "cmvy6erlp0005bfno7zl2w0ir",
+      "email": "spectator@arenahub.gg",
+      "passwordHash": "$2b$10$mVsc2LOWxjciUDjq8ZyTIeVKwFyQEQC8irUffDq8eJX0tuCLBxA/.",
+      "name": "Ananya Iyer",
+      "username": "spectator",
+      "role": "SPECTATOR",
+      "avatarUrl": null,
+      "bio": "Esports enthusiast, statistical analyst, and community caster.",
+      "phone": null,
+      "inGameId": null,
+      "inGameName": "AnanyaCasts",
+      "createdAt": "2026-11-01T18:41:19.165Z",
+      "updatedAt": "2026-11-01T18:41:19.165Z"
+    },
+    {
+      "id": "cmvy6erm00006bfnoja4f3l47",
+      "email": "scout@arenahub.gg",
+      "passwordHash": "$2b$10$mVsc2LOWxjciUDjq8ZyTIeVKwFyQEQC8irUffDq8eJX0tuCLBxA/.",
+      "name": "Tanmay Singh",
+      "username": "tx_scout",
+      "role": "TEAM_CAPTAIN",
+      "avatarUrl": null,
+      "bio": "Captain of Team XSpark.",
+      "phone": null,
+      "inGameId": "533445566",
+      "inGameName": "TX-ScoutOP",
+      "createdAt": "2026-11-01T18:41:19.176Z",
+      "updatedAt": "2026-11-01T18:41:19.176Z"
+    },
+    {
+      "id": "cmvy6erma0007bfno85liq8ok",
+      "email": "manya@arenahub.gg",
+      "passwordHash": "$2b$10$mVsc2LOWxjciUDjq8ZyTIeVKwFyQEQC8irUffDq8eJX0tuCLBxA/.",
+      "name": "Mohammad Manya",
+      "username": "blind_manya",
+      "role": "TEAM_CAPTAIN",
+      "avatarUrl": null,
+      "bio": "IGL for Blind Esports.",
+      "phone": null,
+      "inGameId": "544556677",
+      "inGameName": "Blind-Manya",
+      "createdAt": "2026-11-01T18:41:19.186Z",
+      "updatedAt": "2026-11-01T18:41:19.186Z"
+    },
+    {
+      "id": "cmvy6qviv0000bfj02gc5k0hb",
+      "email": "organizer_b@arenahub.gg",
+      "passwordHash": "dummyhash",
+      "name": "Org B Staff",
+      "username": "organizer_b",
+      "role": "TOURNAMENT_ORGANIZER",
+      "avatarUrl": null,
+      "bio": null,
+      "phone": null,
+      "inGameId": null,
+      "inGameName": null,
+      "createdAt": "2026-11-01T18:50:44.119Z",
+      "updatedAt": "2026-11-01T18:50:44.119Z"
+    }
+  ],
+  "organizations": [
+    {
+      "id": "cmvy6erml0009bfnospwsft76",
+      "name": "KRAFTON Esports India",
+      "slug": "krafton-esports-india",
+      "logoUrl": null,
+      "description": "Official publisher and tournament circuit organizer for Battlegrounds Mobile India.",
+      "status": "ACTIVE",
+      "ownerId": "cmvy6erki0001bfnod5zp0sk2",
+      "createdAt": "2026-11-01T18:41:19.197Z",
+      "updatedAt": "2026-11-01T18:41:19.197Z"
+    },
+    {
+      "id": "cmvy6ermx000ebfnor5y67kla",
+      "name": "Skyesports Championship",
+      "slug": "skyesports-championship",
+      "logoUrl": null,
+      "description": "South Asia's premier independent multi-title esports tournament brand.",
+      "status": "ACTIVE",
+      "ownerId": "cmvy6erk50000bfnocyjps01t",
+      "createdAt": "2026-11-01T18:41:19.209Z",
+      "updatedAt": "2026-11-01T18:41:19.209Z"
+    }
+  ],
+  "orgMemberships": [
+    {
+      "id": "cmvy6erml000bbfnoxne8ww9e",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "userId": "cmvy6erki0001bfnod5zp0sk2",
+      "role": "TOURNAMENT_ORGANIZER",
+      "createdAt": "2026-11-01T18:41:19.197Z",
+      "updatedAt": "2026-11-01T18:41:19.197Z"
+    },
+    {
+      "id": "cmvy6erml000cbfno9yuwb11g",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "userId": "cmvy6erkt0002bfnous3brz2m",
+      "role": "REFEREE",
+      "createdAt": "2026-11-01T18:41:19.197Z",
+      "updatedAt": "2026-11-01T18:41:19.197Z"
+    },
+    {
+      "id": "cmvy6ermx000gbfnovwrn1k4u",
+      "organizationId": "cmvy6ermx000ebfnor5y67kla",
+      "userId": "cmvy6erk50000bfnocyjps01t",
+      "role": "TOURNAMENT_ORGANIZER",
+      "createdAt": "2026-11-01T18:41:19.209Z",
+      "updatedAt": "2026-11-01T18:41:19.209Z"
+    },
+    {
+      "id": "cmvy6ermx000hbfnorbdzidrw",
+      "organizationId": "cmvy6ermx000ebfnor5y67kla",
+      "userId": "cmvy6erkt0002bfnous3brz2m",
+      "role": "REFEREE",
+      "createdAt": "2026-11-01T18:41:19.209Z",
+      "updatedAt": "2026-11-01T18:41:19.209Z"
+    },
+    {
+      "id": "cmvy6qvjv0002bfj00lgwo6xv",
+      "organizationId": "cmvy6ermx000ebfnor5y67kla",
+      "userId": "cmvy6qviv0000bfj02gc5k0hb",
+      "role": "TOURNAMENT_ORGANIZER",
+      "createdAt": "2026-11-01T18:50:44.156Z",
+      "updatedAt": "2026-11-01T18:50:44.156Z"
+    }
+  ],
+  "teams": [
+    {
+      "id": "cmvy6ern9000jbfno7ruoxeqp",
+      "name": "GodLike Esports",
+      "tag": "GODL",
+      "logoUrl": null,
+      "description": "Iconic Indian battle-royale powerhouse known for aggressive offensive plays.",
+      "captainId": "cmvy6erl30003bfnol5y74o1h",
+      "createdAt": "2026-11-01T18:41:19.221Z",
+      "updatedAt": "2026-11-01T18:41:19.221Z"
+    },
+    {
+      "id": "cmvy6ernk000qbfnos2ax9ff0",
+      "name": "Team Soul",
+      "tag": "SOUL",
+      "logoUrl": null,
+      "description": "Historic champions of BMPS and regional majors with a passionate global fanbase.",
+      "captainId": "cmvy6erle0004bfno2an7w7dz",
+      "createdAt": "2026-11-01T18:41:19.233Z",
+      "updatedAt": "2026-11-01T18:41:19.233Z"
+    },
+    {
+      "id": "cmvy6ernw000xbfno7jvds6pt",
+      "name": "Team XSpark",
+      "tag": "TX",
+      "logoUrl": null,
+      "description": "Premier high-tempo squad featuring some of the finest mechanically skilled fraggers.",
+      "captainId": "cmvy6erm00006bfnoja4f3l47",
+      "createdAt": "2026-11-01T18:41:19.245Z",
+      "updatedAt": "2026-11-01T18:41:19.245Z"
+    },
+    {
+      "id": "cmvy6ero70014bfno5t6k98tk",
+      "name": "Blind Esports",
+      "tag": "BLIND",
+      "logoUrl": null,
+      "description": "Consistent tactical squad with supreme zone rotations and zone control.",
+      "captainId": "cmvy6erma0007bfno85liq8ok",
+      "createdAt": "2026-11-01T18:41:19.256Z",
+      "updatedAt": "2026-11-01T18:41:19.256Z"
+    }
+  ],
+  "teamPlayers": [
+    {
+      "id": "cmvy6ern9000lbfnohdoxtqwm",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "userId": "cmvy6erl30003bfnol5y74o1h",
+      "playerName": "GodL-JONATHAN",
+      "inGameId": "511223344",
+      "role": "CAPTAIN",
+      "joinedAt": "2026-11-01T18:41:19.221Z"
+    },
+    {
+      "id": "cmvy6ern9000mbfnodpu382op",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "userId": null,
+      "playerName": "GodL-Neyoo",
+      "inGameId": "511223345",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.221Z"
+    },
+    {
+      "id": "cmvy6ern9000nbfnok0eahfbh",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "userId": null,
+      "playerName": "GodL-Zgod",
+      "inGameId": "511223346",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.221Z"
+    },
+    {
+      "id": "cmvy6ern9000obfnoa9usxriw",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "userId": null,
+      "playerName": "GodL-Punkk",
+      "inGameId": "511223347",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.221Z"
+    },
+    {
+      "id": "cmvy6ernl000sbfnoidi77bnd",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "userId": "cmvy6erle0004bfno2an7w7dz",
+      "playerName": "Soul-Goblin",
+      "inGameId": "522334455",
+      "role": "CAPTAIN",
+      "joinedAt": "2026-11-01T18:41:19.233Z"
+    },
+    {
+      "id": "cmvy6ernl000tbfnompdpduf2",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "userId": null,
+      "playerName": "Soul-Hector",
+      "inGameId": "522334456",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.233Z"
+    },
+    {
+      "id": "cmvy6ernl000ubfnojvsu7tsm",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "userId": null,
+      "playerName": "Soul-Akshat",
+      "inGameId": "522334457",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.233Z"
+    },
+    {
+      "id": "cmvy6ernl000vbfno0gfubq25",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "userId": null,
+      "playerName": "Soul-Omega",
+      "inGameId": "522334458",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.233Z"
+    },
+    {
+      "id": "cmvy6ernw000zbfnov4sn48cg",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "userId": "cmvy6erm00006bfnoja4f3l47",
+      "playerName": "TX-ScoutOP",
+      "inGameId": "533445566",
+      "role": "CAPTAIN",
+      "joinedAt": "2026-11-01T18:41:19.245Z"
+    },
+    {
+      "id": "cmvy6ernw0010bfnoj3pyxa39",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "userId": null,
+      "playerName": "TX-Sarang",
+      "inGameId": "533445567",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.245Z"
+    },
+    {
+      "id": "cmvy6ernw0011bfnot40ntwmc",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "userId": null,
+      "playerName": "TX-NinjaBoi",
+      "inGameId": "533445568",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.245Z"
+    },
+    {
+      "id": "cmvy6ernw0012bfnov075f0fm",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "userId": null,
+      "playerName": "TX-Shadow",
+      "inGameId": "533445569",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.245Z"
+    },
+    {
+      "id": "cmvy6ero70016bfnoduytfb20",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "userId": "cmvy6erma0007bfno85liq8ok",
+      "playerName": "Blind-Manya",
+      "inGameId": "544556677",
+      "role": "CAPTAIN",
+      "joinedAt": "2026-11-01T18:41:19.256Z"
+    },
+    {
+      "id": "cmvy6ero70017bfnoq4m5k8bi",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "userId": null,
+      "playerName": "Blind-Spower",
+      "inGameId": "544556678",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.256Z"
+    },
+    {
+      "id": "cmvy6ero70018bfno5qcq3fsx",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "userId": null,
+      "playerName": "Blind-Nakul",
+      "inGameId": "544556679",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.256Z"
+    },
+    {
+      "id": "cmvy6ero70019bfno6b3m4c35",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "userId": null,
+      "playerName": "Blind-Rony",
+      "inGameId": "544556680",
+      "role": "PLAYER",
+      "joinedAt": "2026-11-01T18:41:19.256Z"
+    }
+  ],
+  "tournaments": [
+    {
+      "id": "cmvy6erok001bbfnohhuznn7s",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "organizerId": "cmvy6erki0001bfnod5zp0sk2",
+      "title": "BGMI Masters Series 2026 - Season 3",
+      "slug": "bgmi-masters-series-2026",
+      "description": "The official national premier battle royale championship featuring 20 elite squads competing across Erangel, Miramar, and Sanhok for the championship trophy.",
+      "game": "BGMI",
+      "bannerUrl": null,
+      "rules": "Official KRAFTON Esports Ruleset 2026. 4-player squads. Standard competitive circles, vehicle spawns, and red-zone disabled. Top 16 placements earn points; 1 kill = 1 point.",
+      "teamCapacity": 20,
+      "teamSize": 4,
+      "scoringConfig": "{\"placementPoints\":{\"1\":15,\"2\":12,\"3\":10,\"4\":8,\"5\":6,\"6\":4,\"7\":2,\"8\":1,\"9\":1,\"10\":1,\"11\":0,\"12\":0,\"13\":0,\"14\":0,\"15\":0,\"16\":0},\"killMultiplier\":1}",
+      "registrationStart": "2026-10-25T18:41:19.266Z",
+      "registrationEnd": "2026-10-30T18:41:19.266Z",
+      "tournamentStart": "2026-10-31T18:41:19.266Z",
+      "tournamentEnd": "2026-11-04T18:41:19.266Z",
+      "status": "LIVE",
+      "isFeatured": true,
+      "prizePool": 2500000,
+      "createdAt": "2026-11-01T18:41:19.268Z",
+      "updatedAt": "2026-11-01T18:41:19.268Z"
+    },
+    {
+      "id": "cmvy6ersa002ebfnobu03bb9b",
+      "organizationId": "cmvy6ermx000ebfnor5y67kla",
+      "organizerId": "cmvy6erk50000bfnocyjps01t",
+      "title": "PUBG Mobile World Invitational Qualifier 2026",
+      "slug": "pubg-mobile-world-invitational",
+      "description": "Open registration qualifier for South Asian squads aiming for the World Invitational in Riyadh. 25 lobby slots available.",
+      "game": "PUBG Mobile",
+      "bannerUrl": null,
+      "rules": "Standard PUBG Mobile Global Championship rules. 25 squads per lobby. 6 matches over 2 matchdays.",
+      "teamCapacity": 25,
+      "teamSize": 4,
+      "scoringConfig": "{\"placementPoints\":{\"1\":15,\"2\":12,\"3\":10,\"4\":8,\"5\":6,\"6\":4,\"7\":2,\"8\":1,\"9\":1,\"10\":1,\"11\":0,\"12\":0,\"13\":0,\"14\":0,\"15\":0,\"16\":0},\"killMultiplier\":1}",
+      "registrationStart": "2026-10-30T18:41:19.266Z",
+      "registrationEnd": "2026-11-06T18:41:19.266Z",
+      "tournamentStart": "2026-11-08T18:41:19.266Z",
+      "tournamentEnd": "2026-11-10T18:41:19.266Z",
+      "status": "REGISTRATION_OPEN",
+      "isFeatured": true,
+      "prizePool": 5000000,
+      "createdAt": "2026-11-01T18:41:19.403Z",
+      "updatedAt": "2026-11-01T18:41:19.403Z"
+    }
+  ],
+  "tournamentRegistrations": [
+    {
+      "id": "cmvy6erok001dbfnorbioz7ym",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "registeredById": "cmvy6erl30003bfnol5y74o1h",
+      "status": "CONFIRMED",
+      "seed": 1,
+      "registeredAt": "2026-11-01T18:41:19.268Z"
+    },
+    {
+      "id": "cmvy6erok001ebfnoy4uyr72k",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "registeredById": "cmvy6erle0004bfno2an7w7dz",
+      "status": "CONFIRMED",
+      "seed": 2,
+      "registeredAt": "2026-11-01T18:41:19.268Z"
+    },
+    {
+      "id": "cmvy6erok001fbfnouhruskaq",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "registeredById": "cmvy6erm00006bfnoja4f3l47",
+      "status": "CONFIRMED",
+      "seed": 3,
+      "registeredAt": "2026-11-01T18:41:19.268Z"
+    },
+    {
+      "id": "cmvy6erok001gbfnose5thhdt",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "registeredById": "cmvy6erma0007bfno85liq8ok",
+      "status": "CONFIRMED",
+      "seed": 4,
+      "registeredAt": "2026-11-01T18:41:19.268Z"
+    },
+    {
+      "id": "cmvy6ersa002gbfno2ns1phrp",
+      "tournamentId": "cmvy6ersa002ebfnobu03bb9b",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "registeredById": "cmvy6erl30003bfnol5y74o1h",
+      "status": "CONFIRMED",
+      "seed": 1,
+      "registeredAt": "2026-11-01T18:41:19.403Z"
+    },
+    {
+      "id": "cmvy6ersa002hbfnofwlsluud",
+      "tournamentId": "cmvy6ersa002ebfnobu03bb9b",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "registeredById": "cmvy6erle0004bfno2an7w7dz",
+      "status": "CONFIRMED",
+      "seed": 2,
+      "registeredAt": "2026-11-01T18:41:19.403Z"
+    }
+  ],
+  "lobbies": [
+    {
+      "id": "cmvy6erov001ibfno9nztv79m",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "lobbyNumber": 1,
+      "title": "Match 1 - Erangel (Group Stage)",
+      "mapName": "Erangel",
+      "scheduledTime": "2026-11-01T16:41:19.266Z",
+      "revealTime": "2026-11-01T16:26:19.266Z",
+      "roomId": "BGMI-MS3-L1",
+      "roomPassword": "erangel#pass#881",
+      "status": "COMPLETED",
+      "createdAt": "2026-11-01T18:41:19.280Z",
+      "updatedAt": "2026-11-01T18:41:19.280Z"
+    },
+    {
+      "id": "cmvy6erqf001xbfnogre4ro7b",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "lobbyNumber": 2,
+      "title": "Match 2 - Miramar (Group Stage)",
+      "mapName": "Miramar",
+      "scheduledTime": "2026-11-01T18:11:19.266Z",
+      "revealTime": "2026-11-01T17:56:19.266Z",
+      "roomId": "BGMI-MS3-L2",
+      "roomPassword": "miramar#krafton#99",
+      "status": "RESULTS_PENDING",
+      "createdAt": "2026-11-01T18:41:19.336Z",
+      "updatedAt": "2026-11-01T18:41:19.336Z"
+    }
+  ],
+  "lobbyTeams": [
+    {
+      "id": "cmvy6erov001kbfnov8bpcep2",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "slotNumber": 1,
+      "assignedAt": "2026-11-01T18:41:19.280Z"
+    },
+    {
+      "id": "cmvy6erov001lbfno01zbv8mv",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "slotNumber": 2,
+      "assignedAt": "2026-11-01T18:41:19.280Z"
+    },
+    {
+      "id": "cmvy6erov001mbfnoj4v7jvo3",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "slotNumber": 3,
+      "assignedAt": "2026-11-01T18:41:19.280Z"
+    },
+    {
+      "id": "cmvy6erov001nbfnotbixy6ci",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "slotNumber": 4,
+      "assignedAt": "2026-11-01T18:41:19.280Z"
+    },
+    {
+      "id": "cmvy6erqf001zbfnornqv2qjk",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "slotNumber": 1,
+      "assignedAt": "2026-11-01T18:41:19.336Z"
+    },
+    {
+      "id": "cmvy6erqf0020bfnoa5fxgrnq",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "slotNumber": 2,
+      "assignedAt": "2026-11-01T18:41:19.336Z"
+    },
+    {
+      "id": "cmvy6erqf0021bfno8g7vwfq2",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "slotNumber": 3,
+      "assignedAt": "2026-11-01T18:41:19.336Z"
+    },
+    {
+      "id": "cmvy6erqf0022bfno3iwfnxzf",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "slotNumber": 4,
+      "assignedAt": "2026-11-01T18:41:19.336Z"
+    }
+  ],
+  "lobbyResults": [
+    {
+      "id": "cmvy6erp7001pbfnoh1jra0d2",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "placement": 1,
+      "kills": 12,
+      "placementPoints": 15,
+      "killPoints": 12,
+      "totalPoints": 27,
+      "status": "VERIFIED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erl30003bfnol5y74o1h",
+      "verifiedById": "cmvy6erkt0002bfnous3brz2m",
+      "submittedAt": "2026-11-01T18:41:19.291Z",
+      "verifiedAt": "2026-11-01T17:41:19.266Z"
+    },
+    {
+      "id": "cmvy6erpi001rbfnoqjw0ites",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "placement": 2,
+      "kills": 8,
+      "placementPoints": 12,
+      "killPoints": 8,
+      "totalPoints": 20,
+      "status": "VERIFIED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erle0004bfno2an7w7dz",
+      "verifiedById": "cmvy6erkt0002bfnous3brz2m",
+      "submittedAt": "2026-11-01T18:41:19.303Z",
+      "verifiedAt": "2026-11-01T17:41:19.266Z"
+    },
+    {
+      "id": "cmvy6erpt001tbfno1rfwh4v9",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "placement": 3,
+      "kills": 6,
+      "placementPoints": 10,
+      "killPoints": 6,
+      "totalPoints": 16,
+      "status": "VERIFIED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erm00006bfnoja4f3l47",
+      "verifiedById": "cmvy6erkt0002bfnous3brz2m",
+      "submittedAt": "2026-11-01T18:41:19.314Z",
+      "verifiedAt": "2026-11-01T17:41:19.266Z"
+    },
+    {
+      "id": "cmvy6erq4001vbfno6k7baqsj",
+      "lobbyId": "cmvy6erov001ibfno9nztv79m",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "placement": 4,
+      "kills": 4,
+      "placementPoints": 8,
+      "killPoints": 4,
+      "totalPoints": 12,
+      "status": "VERIFIED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erma0007bfno85liq8ok",
+      "verifiedById": "cmvy6erkt0002bfnous3brz2m",
+      "submittedAt": "2026-11-01T18:41:19.325Z",
+      "verifiedAt": "2026-11-01T17:41:19.266Z"
+    },
+    {
+      "id": "cmvy6erqr0024bfnomhbmwqr2",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ernk000qbfnos2ax9ff0",
+      "placement": 1,
+      "kills": 14,
+      "placementPoints": 15,
+      "killPoints": 14,
+      "totalPoints": 29,
+      "status": "SUBMITTED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erle0004bfno2an7w7dz",
+      "verifiedById": null,
+      "submittedAt": "2026-11-01T18:41:19.347Z",
+      "verifiedAt": null
+    },
+    {
+      "id": "cmvy6err20026bfnoos63zchq",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "placement": 2,
+      "kills": 8,
+      "placementPoints": 12,
+      "killPoints": 8,
+      "totalPoints": 20,
+      "status": "VERIFIED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erki0001bfnod5zp0sk2",
+      "verifiedById": "cmvy6erkt0002bfnous3brz2m",
+      "submittedAt": "2026-11-01T18:41:19.358Z",
+      "verifiedAt": "2026-11-01T18:50:44.192Z"
+    },
+    {
+      "id": "cmvy6errd0028bfno9njhx4lk",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ero70014bfno5t6k98tk",
+      "placement": 3,
+      "kills": 7,
+      "placementPoints": 10,
+      "killPoints": 7,
+      "totalPoints": 17,
+      "status": "SUBMITTED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erma0007bfno85liq8ok",
+      "verifiedById": null,
+      "submittedAt": "2026-11-01T18:41:19.369Z",
+      "verifiedAt": null
+    },
+    {
+      "id": "cmvy6errn002abfnocwm4pw5c",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ernw000xbfno7jvds6pt",
+      "placement": 4,
+      "kills": 3,
+      "placementPoints": 8,
+      "killPoints": 3,
+      "totalPoints": 11,
+      "status": "SUBMITTED",
+      "screenshotUrl": null,
+      "submittedById": "cmvy6erm00006bfnoja4f3l47",
+      "verifiedById": null,
+      "submittedAt": "2026-11-01T18:41:19.380Z",
+      "verifiedAt": null
+    }
+  ],
+  "disputes": [
+    {
+      "id": "cmvy6errz002cbfno2d3k6c4f",
+      "tournamentId": "cmvy6erok001bbfnohhuznn7s",
+      "lobbyId": "cmvy6erqf001xbfnogre4ro7b",
+      "teamId": "cmvy6ern9000jbfno7ruoxeqp",
+      "resultId": "cmvy6err20026bfnoos63zchq",
+      "raisedById": "cmvy6erl30003bfnol5y74o1h",
+      "refereeId": "cmvy6erkt0002bfnous3brz2m",
+      "reason": "INCORRECT_KILLS",
+      "description": "Match 2 Miramar scoreboard incorrectly credited GodLike with only 5 kills. The official match end screen and replay log show Jonathan with 5 kills and Neyoo with 3 kills, yielding 8 total team kills.",
+      "evidenceUrl": "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200",
+      "status": "RESOLVED",
+      "resolutionNotes": "Kill feed video evidence verified. Jonathan had 5 kills and Neyoo had 3 kills (total 8 kills).",
+      "createdAt": "2026-11-01T18:41:19.391Z",
+      "updatedAt": "2026-11-01T18:50:44.202Z",
+      "resolvedAt": "2026-11-01T18:50:44.195Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "cmvy6ersm002ibfno2y06qeki",
+      "userId": "cmvy6erkt0002bfnous3brz2m",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "title": "Dispute Opened: Match 2 Miramar",
+      "message": "GodLike Esports has raised a dispute regarding recorded kills in Match 2 Miramar.",
+      "type": "DISPUTE",
+      "read": false,
+      "linkUrl": "/tournaments/bgmi-masters-series-2026",
+      "createdAt": "2026-11-01T18:41:19.414Z"
+    },
+    {
+      "id": "cmvy6ersm002jbfnotnklp2q4",
+      "userId": "cmvy6erl30003bfnol5y74o1h",
+      "organizationId": null,
+      "title": "Room Credentials Posted",
+      "message": "Room ID and Password for Match 2 Miramar are now available to your squad.",
+      "type": "CREDENTIALS",
+      "read": false,
+      "linkUrl": "/tournaments/bgmi-masters-series-2026",
+      "createdAt": "2026-11-01T18:41:19.414Z"
+    },
+    {
+      "id": "cmvy6ersm002kbfnoyg985nq3",
+      "userId": "cmvy6erle0004bfno2an7w7dz",
+      "organizationId": null,
+      "title": "Match 1 Results Verified",
+      "message": "Official referee has verified Match 1 Erangel scores. Team Soul earned 20 points.",
+      "type": "RESULT",
+      "read": false,
+      "linkUrl": "/tournaments/bgmi-masters-series-2026",
+      "createdAt": "2026-11-01T18:41:19.414Z"
+    },
+    {
+      "id": "cmvy6qvl80008bfpwxotkz321",
+      "userId": "cmvy6erl30003bfnol5y74o1h",
+      "organizationId": null,
+      "title": "Dispute Resolved",
+      "message": "Your dispute for Match 2 - Miramar (Group Stage) was marked RESOLVED. Notes: Kill feed video evidence verified. Jonathan had 5 kills and Neyoo had 3 kills (total 8 kills).",
+      "type": "DISPUTE",
+      "read": false,
+      "linkUrl": "/tournaments/bgmi-masters-series-2026",
+      "createdAt": "2026-11-01T18:50:44.204Z"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "cmvy6ersx002lbfno20h6dmoj",
+      "actorId": "cmvy6erki0001bfnod5zp0sk2",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "action": "TOURNAMENT_CREATED",
+      "entityType": "Tournament",
+      "entityId": "cmvy6erok001bbfnohhuznn7s",
+      "metadata": "{\"title\":\"BGMI Masters Series 2026 - Season 3\",\"capacity\":20}",
+      "createdAt": "2026-11-01T18:41:19.425Z"
+    },
+    {
+      "id": "cmvy6ersx002mbfnoxacuvo9r",
+      "actorId": "cmvy6erkt0002bfnous3brz2m",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "action": "RESULTS_VERIFIED",
+      "entityType": "Lobby",
+      "entityId": "cmvy6erov001ibfno9nztv79m",
+      "metadata": "{\"verifiedMatch\":\"Match 1 - Erangel\",\"teamsVerified\":4}",
+      "createdAt": "2026-11-01T18:41:19.425Z"
+    },
+    {
+      "id": "cmvy6ersx002nbfnouguva0zw",
+      "actorId": "cmvy6erl30003bfnol5y74o1h",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "action": "DISPUTE_RAISED",
+      "entityType": "Dispute",
+      "entityId": "cmvy6errz002cbfno2d3k6c4f",
+      "metadata": "{\"reason\":\"INCORRECT_KILLS\",\"team\":\"GodLike Esports\"}",
+      "createdAt": "2026-11-01T18:41:19.425Z"
+    },
+    {
+      "id": "cmvy6qvl8000abfpw9dkccgqt",
+      "actorId": "cmvy6erkt0002bfnous3brz2m",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "action": "DISPUTE_RESOLVED",
+      "entityType": "DISPUTE",
+      "entityId": "cmvy6errz002cbfno2d3k6c4f",
+      "metadata": "{\"status\":\"RESOLVED\",\"notes\":\"Kill feed video evidence verified. Jonathan had 5 kills and Neyoo had 3 kills (total 8 kills).\",\"correctedPlacement\":2,\"correctedKills\":8}",
+      "createdAt": "2026-11-01T18:50:44.205Z"
+    },
+    {
+      "id": "cmvy6qvtu000sbfj080t9ip5u",
+      "actorId": "cmvy6erl30003bfnol5y74o1h",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "action": "RESULT_SUBMITTED",
+      "entityType": "LOBBY_RESULT",
+      "entityId": "cmvy6qvts000qbfj0uo8olx16",
+      "metadata": "{\"teamTag\":\"GODL\",\"placement\":3,\"kills\":6,\"totalPoints\":16}",
+      "createdAt": "2026-11-01T18:50:44.515Z"
+    },
+    {
+      "id": "cmvy6qvug000wbfj0r0shm1dz",
+      "actorId": "cmvy6erl30003bfnol5y74o1h",
+      "organizationId": "cmvy6erml0009bfnospwsft76",
+      "action": "RESULT_SUBMITTED",
+      "entityType": "LOBBY_RESULT",
+      "entityId": "cmvy6qvts000qbfj0uo8olx16",
+      "metadata": "{\"teamTag\":\"GODL\",\"placement\":3,\"kills\":7,\"totalPoints\":17}",
+      "createdAt": "2026-11-01T18:50:44.537Z"
+    }
+  ]
+}

@@ -442,62 +442,73 @@ export class LobbyService {
     const scoringConfig = ScoringService.parseConfig(lobby.tournament.scoringConfig);
     const calculated = ScoringService.calculatePoints(data.placement, data.kills, scoringConfig);
 
-    // Atomic transaction for database consistency
-    return prisma.$transaction(async (tx) => {
-      const result = await tx.lobbyResult.upsert({
-        where: {
-          lobbyId_teamId: {
-            lobbyId: data.lobbyId,
-            teamId: data.teamId,
+    // Atomic transaction for database consistency with concurrency retry
+    const executeSubmit = async () => {
+      return prisma.$transaction(async (tx) => {
+        const result = await tx.lobbyResult.upsert({
+          where: {
+            lobbyId_teamId: {
+              lobbyId: data.lobbyId,
+              teamId: data.teamId,
+            },
           },
-        },
-        update: {
-          placement: data.placement,
-          kills: data.kills,
-          placementPoints: calculated.placementPoints,
-          killPoints: calculated.killPoints,
-          totalPoints: calculated.totalPoints,
-          screenshotUrl: data.screenshotUrl || null,
-          submittedById: userId,
-          status: "SUBMITTED",
-          submittedAt: new Date(),
-        },
-        create: {
-          lobbyId: data.lobbyId,
-          teamId: data.teamId,
-          placement: data.placement,
-          kills: data.kills,
-          placementPoints: calculated.placementPoints,
-          killPoints: calculated.killPoints,
-          totalPoints: calculated.totalPoints,
-          screenshotUrl: data.screenshotUrl || null,
-          submittedById: userId,
-          status: "SUBMITTED",
-        },
-        include: {
-          team: true,
-        },
-      });
-
-      // Audit log
-      await tx.auditLog.create({
-        data: {
-          actorId: userId,
-          organizationId: lobby.tournament.organizationId,
-          action: "RESULT_SUBMITTED",
-          entityType: "LOBBY_RESULT",
-          entityId: result.id,
-          metadata: JSON.stringify({
-            teamTag: team.tag,
+          update: {
             placement: data.placement,
             kills: data.kills,
+            placementPoints: calculated.placementPoints,
+            killPoints: calculated.killPoints,
             totalPoints: calculated.totalPoints,
-          }),
-        },
-      });
+            screenshotUrl: data.screenshotUrl || null,
+            submittedById: userId,
+            status: "SUBMITTED",
+            submittedAt: new Date(),
+          },
+          create: {
+            lobbyId: data.lobbyId,
+            teamId: data.teamId,
+            placement: data.placement,
+            kills: data.kills,
+            placementPoints: calculated.placementPoints,
+            killPoints: calculated.killPoints,
+            totalPoints: calculated.totalPoints,
+            screenshotUrl: data.screenshotUrl || null,
+            submittedById: userId,
+            status: "SUBMITTED",
+          },
+          include: {
+            team: true,
+          },
+        });
 
-      return result;
-    });
+        // Audit log
+        await tx.auditLog.create({
+          data: {
+            actorId: userId,
+            organizationId: lobby.tournament.organizationId,
+            action: "RESULT_SUBMITTED",
+            entityType: "LOBBY_RESULT",
+            entityId: result.id,
+            metadata: JSON.stringify({
+              teamTag: team.tag,
+              placement: data.placement,
+              kills: data.kills,
+              totalPoints: calculated.totalPoints,
+            }),
+          },
+        });
+
+        return result;
+      });
+    };
+
+    try {
+      return await executeSubmit();
+    } catch (err: any) {
+      if (err.code === "P2002") {
+        return await executeSubmit();
+      }
+      throw err;
+    }
   }
 
   /**

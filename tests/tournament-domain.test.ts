@@ -192,33 +192,26 @@ describe("Battle-Royale Tournament Domain & Security Invariants", () => {
 
   describe("Dispute Resolution & Score Correction Lifecycle", () => {
     it("should allow a referee to uphold dispute and update lobby score", async () => {
-      let dispute = await prisma.dispute.findFirst({
-        where: { status: "OPEN" },
+      const lobby = await prisma.lobby.findFirst({ include: { tournament: true } });
+      const team = await prisma.team.findFirst();
+      const captain = await prisma.user.findFirst({ where: { role: "TEAM_CAPTAIN" } });
+      expect(lobby).not.toBeNull();
+      expect(team).not.toBeNull();
+      expect(captain).not.toBeNull();
+      if (!lobby || !team || !captain) return;
+
+      const dispute = await prisma.dispute.create({
+        data: {
+          tournamentId: lobby.tournamentId,
+          lobbyId: lobby.id,
+          teamId: team.id,
+          raisedById: captain.id,
+          reason: "INCORRECT_KILLS",
+          description: "Test dispute for automated adjudication",
+          status: "OPEN",
+        },
         include: { lobby: true, team: true },
       });
-
-      if (!dispute) {
-        const lobby = await prisma.lobby.findFirst({ include: { tournament: true } });
-        const team = await prisma.team.findFirst();
-        const captain = await prisma.user.findFirst({ where: { role: "TEAM_CAPTAIN" } });
-        if (lobby && team && captain) {
-          dispute = await prisma.dispute.create({
-            data: {
-              tournamentId: lobby.tournamentId,
-              lobbyId: lobby.id,
-              teamId: team.id,
-              raisedById: captain.id,
-              reason: "INCORRECT_KILLS",
-              description: "Test dispute for automated adjudication",
-              status: "OPEN",
-            },
-            include: { lobby: true, team: true },
-          });
-        }
-      }
-
-      expect(dispute).not.toBeNull();
-      if (!dispute) return;
 
       const referee = await prisma.user.findFirst({ where: { role: "REFEREE" } });
       expect(referee).not.toBeNull();
@@ -251,6 +244,9 @@ describe("Battle-Royale Tournament Domain & Security Invariants", () => {
       // 2nd place (12 pts) + 8 kills = 20 pts
       expect(updatedResult?.totalPoints).toBe(20);
       expect(updatedResult?.status).toBe("VERIFIED");
+
+      // Cleanup
+      await prisma.dispute.delete({ where: { id: dispute.id } }).catch(() => {});
     });
   });
 });
