@@ -71,7 +71,7 @@ export function TournamentCard({ tournament }: TournamentCardProps) {
           <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1.5">
             <Shield className="w-3.5 h-3.5 text-amber-500" />
             <span className="font-semibold text-slate-300 truncate">
-              {tournament.organization.name}
+              {tournament.organization?.name || "Independent"}
             </span>
             <span>•</span>
             <span className="font-mono text-[10px] uppercase text-slate-400">

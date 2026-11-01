@@ -84,27 +84,41 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
     description: "",
   });
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchData = async () => {
+    setLoading(true);
+    setFetchError(null);
     try {
       const [tourneyRes, authRes] = await Promise.all([
         fetch(`/api/tournaments/${slug}`),
         fetch("/api/auth/me"),
       ]);
 
-      if (tourneyRes.ok) {
+      if (!tourneyRes.ok) {
+        const errData = await tourneyRes.json().catch(() => ({}));
+        if (tourneyRes.status === 404) {
+          setTournament(null);
+          setFetchError("Tournament not found");
+        } else {
+          setTournament(null);
+          setFetchError(errData.error || "Failed to load tournament operations.");
+        }
+      } else {
         const data = await tourneyRes.json();
-        setTournament(data.tournament);
+        setTournament(data.tournament || null);
       }
 
       if (authRes.ok) {
-        const uData = await authRes.json();
+        const uData = await authRes.json().catch(() => ({}));
         setCurrentUser(uData.user || null);
         if (uData.user?.teamsLed && uData.user.teamsLed.length > 0) {
-          setSelectedTeamId(uData.user.teamsLed[0].id);
+          setSelectedTeamId(uData.user.teamsLed[0]?.id || "");
         }
       }
     } catch {
-      // Ignore
+      setTournament(null);
+      setFetchError("Unable to connect to tournament operations. Please check your network connection.");
     } finally {
       setLoading(false);
     }
@@ -123,11 +137,34 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
     );
   }
 
+  if (fetchError && !tournament) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-24 text-center">
+        <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-2" />
+        <h2 className="text-lg font-bold text-white mb-2">Tournament Unavailable</h2>
+        <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">{fetchError}</p>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="primary" size="sm" onClick={() => fetchData()}>
+            Retry
+          </Button>
+          <Link href="/tournaments">
+            <Button variant="ghost" size="sm">
+              Browse Tournaments
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!tournament) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-24 text-center">
         <Trophy className="w-10 h-10 text-slate-600 mx-auto mb-2" />
         <h2 className="text-lg font-bold text-white mb-2">Tournament Not Found</h2>
+        <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
+          This tournament does not exist, has been removed, or is not yet published.
+        </p>
         <Link href="/tournaments">
           <Button variant="primary" size="sm">Browse Tournaments</Button>
         </Link>
@@ -135,20 +172,25 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
     );
   }
 
-  const isOrganizerOrAdmin =
-    currentUser &&
-    (currentUser.id === tournament.organizerId ||
-      currentUser.role === "PLATFORM_ADMIN" ||
-      currentUser.role === "TOURNAMENT_ORGANIZER" ||
-      currentUser.role === "REFEREE");
+  const registrations = tournament.registrations || [];
+  const lobbies = tournament.lobbies || [];
 
-  const isUserRegistered =
+  const isOrganizerOrAdmin = Boolean(
     currentUser &&
-    tournament.registrations.some(
-      (r: any) =>
-        r.registeredById === currentUser.id ||
-        (currentUser.teamsLed && currentUser.teamsLed.some((t: any) => t.id === r.teamId))
-    );
+      (currentUser.id === tournament.organizerId ||
+        currentUser.role === "PLATFORM_ADMIN" ||
+        currentUser.role === "TOURNAMENT_ORGANIZER" ||
+        currentUser.role === "REFEREE")
+  );
+
+  const isUserRegistered = Boolean(
+    currentUser &&
+      registrations.some(
+        (r: any) =>
+          r?.registeredById === currentUser.id ||
+          (currentUser.teamsLed && currentUser.teamsLed.some((t: any) => t?.id === r?.teamId))
+      )
+  );
 
   const handleRegister = async () => {
     if (!currentUser) {
@@ -279,7 +321,7 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
 
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <Shield className="w-3.5 h-3.5 text-amber-500" />
-                <span>Hosted by <strong className="text-slate-200">{tournament.organization.name}</strong></span>
+                <span>Hosted by <strong className="text-slate-200">{tournament.organization?.name || "Independent"}</strong></span>
               </div>
             </div>
 
@@ -300,7 +342,7 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
                       >
                         {currentUser.teamsLed.map((t: any) => (
                           <option key={t.id} value={t.id}>
-                            [{t.tag}] {t.name} ({t.players.length} players)
+                            [{t.tag}] {t.name} ({(t.players || []).length} players)
                           </option>
                         ))}
                       </select>
@@ -349,7 +391,7 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
             <div>
               <div className="text-[10px] uppercase text-slate-400">Squad Slots</div>
               <div className="text-xs font-bold text-white">
-                {tournament.registrations.length} / {tournament.teamCapacity} Squads
+                {registrations.length} / {tournament.teamCapacity || 20} Squads
               </div>
             </div>
           </div>
@@ -496,7 +538,7 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              {tab === "lobbies" ? `Match Lobbies (${tournament.lobbies?.length || 0})` : tab}
+              {tab === "lobbies" ? `Match Lobbies (${lobbies.length})` : tab}
             </button>
           ))}
         </div>
@@ -504,8 +546,8 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
         {/* Tab 1: Lobbies */}
         {activeTab === "lobbies" && (
           <div className="space-y-6">
-            {tournament.lobbies && tournament.lobbies.length > 0 ? (
-              tournament.lobbies.map((lobby: LobbyDetails) => (
+            {lobbies.length > 0 ? (
+              lobbies.map((lobby: LobbyDetails) => (
                 <LobbyRoomView
                   key={lobby.id}
                   lobby={lobby}
@@ -555,7 +597,7 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-bold text-white font-mono">
-                  Registered Battle-Royale Squads ({tournament.registrations.length})
+                  Registered Battle-Royale Squads ({registrations.length})
                 </h3>
                 <p className="text-xs text-slate-400">
                   Confirmed team rosters verified for this tournament.
@@ -564,7 +606,7 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {tournament.registrations.map((reg: any, idx: number) => (
+              {registrations.map((reg: any, idx: number) => (
                 <div key={reg.id} className="p-3.5 bg-[#121824] border border-white/5 rounded">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-mono text-xs font-bold text-amber-400">
@@ -573,18 +615,18 @@ export default function TournamentDetailPage({ params }: TournamentDetailProps) 
                     <Badge variant="gold">Confirmed</Badge>
                   </div>
                   <h4 className="font-bold text-white text-sm">
-                    [{reg.team.tag}] {reg.team.name}
+                    [{reg.team?.tag || "TEAM"}] {reg.team?.name || "Squad"}
                   </h4>
                   <div className="text-[11px] text-slate-400 mb-2">
-                    Captain: <span className="text-slate-300 font-semibold">{reg.team.captain.username}</span>
+                    Captain: <span className="text-slate-300 font-semibold">{reg.team?.captain?.username || "Unknown"}</span>
                   </div>
 
                   <div className="space-y-1 pt-2 border-t border-white/[0.04]">
                     <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">
-                      Roster Lineup ({reg.team.players.length})
+                      Roster Lineup ({(reg.team?.players || []).length})
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {reg.team.players.map((p: any) => (
+                      {(reg.team?.players || []).map((p: any) => (
                         <span
                           key={p.id}
                           className="bg-black/50 border border-white/5 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-300"

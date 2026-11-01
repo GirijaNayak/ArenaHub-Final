@@ -173,23 +173,23 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/tournaments/${reg.tournament.slug}`}
+                        href={`/tournaments/${reg.tournament?.slug || ""}`}
                         className="font-bold text-white text-sm hover:text-amber-400 transition-colors"
                       >
-                        {reg.tournament.title}
+                        {reg.tournament?.title || "Tournament"}
                       </Link>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                         {reg.team?.tag}
                       </span>
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5 font-mono">
-                      {reg.tournament.game} • {reg.tournament.organization?.name} • Starts{" "}
-                      {new Date(reg.tournament.tournamentStart).toLocaleDateString()}
+                      {reg.tournament?.game || "Battle Royale"} • {reg.tournament?.organization?.name || "Independent"} • Starts{" "}
+                      {reg.tournament?.tournamentStart ? new Date(reg.tournament.tournamentStart).toLocaleDateString() : "TBD"}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge status={reg.tournament.status} />
-                    <Link href={`/tournaments/${reg.tournament.slug}`}>
+                    <Badge status={reg.tournament?.status || "DRAFT"} />
+                    <Link href={`/tournaments/${reg.tournament?.slug || ""}`}>
                       <Button variant="secondary" size="sm" className="text-xs font-mono">
                         View Lobbies
                       </Button>

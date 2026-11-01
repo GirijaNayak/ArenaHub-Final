@@ -179,7 +179,12 @@ export class TournamentService {
           include: {
             teams: {
               include: {
-                team: { select: { id: true, name: true, tag: true } },
+                team: {
+                  include: {
+                    captain: { select: { id: true, name: true, username: true } },
+                    players: true,
+                  },
+                },
               },
               orderBy: { slotNumber: "asc" },
             },
