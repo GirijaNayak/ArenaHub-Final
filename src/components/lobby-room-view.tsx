@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   KeyRound,
   Lock,
@@ -27,8 +27,8 @@ export interface LobbyTeamData {
     name: string;
     tag: string;
     logoUrl?: string | null;
-    captain: { id: string; username: string };
-    players: Array<{ id: string; playerName: string; inGameId: string; role: string }>;
+    captain?: { id: string; username: string } | null;
+    players?: Array<{ id: string; playerName: string; inGameId: string; role?: string }>;
   };
 }
 
@@ -85,11 +85,41 @@ export function LobbyRoomView({
   const [copiedPass, setCopiedPass] = useState(false);
   const [activeTab, setActiveTab] = useState<"slots" | "results">("slots");
 
+  // Secure lobby details fetched for authorized users (e.g. assigned squads or organizers)
+  const [secureLobby, setSecureLobby] = useState<LobbyDetails | null>(null);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (currentUserId && lobby?.id && !lobby.canAccessCredentials) {
+      fetch(`/api/lobbies/${lobby.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (isSubscribed && data?.lobby) {
+            setSecureLobby(data.lobby);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [lobby?.id, currentUserId, lobby?.canAccessCredentials]);
+
+  const activeLobby = secureLobby || lobby;
+  const teams = activeLobby?.teams || [];
+  const results = activeLobby?.results || [];
+
   // Credential update state for organizer
   const [editingCreds, setEditingCreds] = useState(false);
-  const [newRoomId, setNewRoomId] = useState(lobby.roomId || "");
-  const [newPassword, setNewPassword] = useState(lobby.roomPassword || "");
+  const [newRoomId, setNewRoomId] = useState(activeLobby?.roomId || "");
+  const [newPassword, setNewPassword] = useState(activeLobby?.roomPassword || "");
   const [savingCreds, setSavingCreds] = useState(false);
+
+  // Keep editor state in sync when activeLobby changes
+  useEffect(() => {
+    if (activeLobby?.roomId) setNewRoomId(activeLobby.roomId);
+    if (activeLobby?.roomPassword) setNewPassword(activeLobby.roomPassword);
+  }, [activeLobby?.roomId, activeLobby?.roomPassword]);
 
   const copyToClipboard = (text: string, isPass: boolean) => {
     navigator.clipboard.writeText(text);
@@ -106,7 +136,7 @@ export function LobbyRoomView({
     e.preventDefault();
     setSavingCreds(true);
     try {
-      const res = await fetch(`/api/lobbies/${lobby.id}`, {
+      const res = await fetch(`/api/lobbies/${activeLobby.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -126,11 +156,16 @@ export function LobbyRoomView({
     }
   };
 
-  // Find user's assigned team if any
-  const userTeam = lobby.teams.find(
+  // Find user's assigned team if any with strict optional chaining
+  const userTeam = teams.find(
     (lt) =>
-      lt.team.captain.id === currentUserId ||
-      lt.team.players.some((p) => p.playerName.toLowerCase() === currentUserId?.toLowerCase())
+      Boolean(currentUserId && lt?.team?.captain?.id === currentUserId) ||
+      Boolean(
+        currentUserId &&
+          lt?.team?.players?.some(
+            (p) => p?.playerName?.toLowerCase() === currentUserId?.toLowerCase()
+          )
+      )
   );
 
   return (
@@ -140,23 +175,23 @@ export function LobbyRoomView({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-xs font-bold text-amber-400 uppercase tracking-wider">
-              Match #{lobby.lobbyNumber}
+              Match #{activeLobby.lobbyNumber}
             </span>
-            <Badge status={lobby.status} />
+            <Badge status={activeLobby.status} />
             <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
               <MapPin className="w-3 h-3 text-slate-500" />
-              {lobby.mapName}
+              {activeLobby.mapName}
             </span>
           </div>
-          <h2 className="text-lg font-bold text-white">{lobby.title}</h2>
+          <h2 className="text-lg font-bold text-white">{activeLobby.title}</h2>
           <div className="flex items-center gap-3 text-xs text-slate-400 font-mono mt-0.5">
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-slate-500" />
-              Start: {new Date(lobby.scheduledTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              Start: {new Date(activeLobby.scheduledTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
             <span>•</span>
             <span>
-              Reveal: {new Date(lobby.revealTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              Reveal: {new Date(activeLobby.revealTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>
         </div>
@@ -212,7 +247,7 @@ export function LobbyRoomView({
 
       {/* Room Credential Security Box */}
       <div className="p-4 sm:p-5 bg-[#0a0d14] border-b border-white/[0.06]">
-        {lobby.canAccessCredentials && lobby.roomId ? (
+        {activeLobby.canAccessCredentials && activeLobby.roomId ? (
           <div className="p-4 rounded-md bg-[#131d2a] border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-1">
@@ -226,9 +261,9 @@ export function LobbyRoomView({
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 bg-[#0a0d14] border border-white/10 rounded px-3 py-1.5">
                 <span className="text-[10px] uppercase font-mono text-slate-500 font-semibold">ID:</span>
-                <span className="font-mono font-bold text-sm text-white">{lobby.roomId}</span>
+                <span className="font-mono font-bold text-sm text-white">{activeLobby.roomId}</span>
                 <button
-                  onClick={() => copyToClipboard(lobby.roomId!, false)}
+                  onClick={() => copyToClipboard(activeLobby.roomId!, false)}
                   className="text-slate-400 hover:text-white p-1"
                   title="Copy Room ID"
                 >
@@ -238,10 +273,10 @@ export function LobbyRoomView({
 
               <div className="flex items-center gap-2 bg-[#0a0d14] border border-white/10 rounded px-3 py-1.5">
                 <span className="text-[10px] uppercase font-mono text-slate-500 font-semibold">Pass:</span>
-                <span className="font-mono font-bold text-sm text-amber-400">{lobby.roomPassword || "None"}</span>
-                {lobby.roomPassword && (
+                <span className="font-mono font-bold text-sm text-amber-400">{activeLobby.roomPassword || "None"}</span>
+                {activeLobby.roomPassword && (
                   <button
-                    onClick={() => copyToClipboard(lobby.roomPassword!, true)}
+                    onClick={() => copyToClipboard(activeLobby.roomPassword!, true)}
                     className="text-slate-400 hover:text-white p-1"
                     title="Copy Password"
                   >
@@ -262,7 +297,7 @@ export function LobbyRoomView({
                   Private Room Credentials Protected
                 </span>
                 <span className="text-xs text-slate-400">
-                  {lobby.credentialLockReason || "Credentials unlocked only for assigned squads at reveal time."}
+                  {activeLobby.credentialLockReason || "Credentials unlocked only for assigned squads at reveal time."}
                 </span>
               </div>
             </div>
@@ -281,7 +316,7 @@ export function LobbyRoomView({
               : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
-          Room Slots ({lobby.teams.length}/25)
+          Room Slots ({teams.length}/25)
         </button>
         <button
           onClick={() => setActiveTab("results")}
@@ -291,7 +326,7 @@ export function LobbyRoomView({
               : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
-          Match Results ({lobby.results.length})
+          Match Results ({results.length})
         </button>
       </div>
 
@@ -299,8 +334,8 @@ export function LobbyRoomView({
       {activeTab === "slots" && (
         <div className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {lobby.teams.map((slot) => {
-              const isMyTeam = slot.team.captain.id === currentUserId;
+            {teams.map((slot) => {
+              const isMyTeam = Boolean(currentUserId && slot?.team?.captain?.id === currentUserId);
               return (
                 <div
                   key={slot.id}
@@ -322,20 +357,20 @@ export function LobbyRoomView({
                   </div>
 
                   <div className="font-bold text-white text-sm truncate mb-1">
-                    [{slot.team.tag}] {slot.team.name}
+                    [{slot?.team?.tag || "TEAM"}] {slot?.team?.name || "Squad"}
                   </div>
 
                   <div className="text-[11px] text-slate-400 mb-2">
-                    Captain: <span className="text-slate-200 font-semibold">{slot.team.captain.username}</span>
+                    Captain: <span className="text-slate-200 font-semibold">{slot?.team?.captain?.username || "Unknown"}</span>
                   </div>
 
                   {/* Roster lineup */}
                   <div className="space-y-1 pt-2 border-t border-white/[0.04]">
                     <div className="text-[10px] font-mono uppercase text-slate-500 font-bold">
-                      Squad Lineup ({slot.team.players.length})
+                      Squad Lineup ({(slot?.team?.players || []).length})
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {slot.team.players.map((p) => (
+                      {(slot?.team?.players || []).map((p) => (
                         <span
                           key={p.id}
                           className="bg-black/40 border border-white/5 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-300"
@@ -351,7 +386,7 @@ export function LobbyRoomView({
             })}
           </div>
 
-          {lobby.teams.length === 0 && (
+          {teams.length === 0 && (
             <div className="py-8 text-center text-xs text-slate-500">
               No squads assigned to this room yet.
             </div>
@@ -364,22 +399,22 @@ export function LobbyRoomView({
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs text-slate-400">
-              Battle-royale placement and kills recorded for {lobby.title}.
+              Battle-royale placement and kills recorded for {activeLobby.title}.
             </div>
 
             {/* If user is captain of an assigned squad, can submit score */}
-            {userTeam && (
+            {userTeam && userTeam.team && (
               <Button
                 variant="amber-subtle"
                 size="sm"
-                onClick={() => onSubmitResult(lobby.id, userTeam.team.id)}
+                onClick={() => onSubmitResult(activeLobby.id, userTeam.team.id)}
               >
                 Submit Squad Result
               </Button>
             )}
           </div>
 
-          {lobby.results.length === 0 ? (
+          {results.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-500">
               Results have not yet been posted for this match.
             </div>
@@ -398,11 +433,11 @@ export function LobbyRoomView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {lobby.results.map((r, idx) => (
+                  {results.map((r, idx) => (
                     <tr key={r.id} className="hover:bg-white/[0.02]">
                       <td className="p-2.5 text-center font-mono text-slate-500">{idx + 1}</td>
                       <td className="p-2.5 font-bold text-white">
-                        [{r.team.tag}] {r.team.name}
+                        [{r.team?.tag || "TEAM"}] {r.team?.name || "Squad"}
                       </td>
                       <td className="p-2.5 text-center font-mono font-bold text-amber-300">
                         #{r.placement}
@@ -429,7 +464,7 @@ export function LobbyRoomView({
                           <Button
                             variant="danger"
                             size="xs"
-                            onClick={() => onRaiseDispute(lobby.id, r.team.id, r.id)}
+                            onClick={() => r.team?.id && onRaiseDispute(activeLobby.id, r.team.id, r.id)}
                           >
                             Dispute
                           </Button>
